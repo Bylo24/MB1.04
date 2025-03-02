@@ -1,0 +1,10 @@
+{
+  id: '22',
+  title: 'Stretch Break',
+  description: 'Take a short break to stretch your body, especially if you\'ve been sitting.',
+  duration: 5,
+  category: 'exercise',
+  moodImpact: 'medium',
+  imageUrl: 'https://images.unsplash.com/photo-1599901860904-17e6ed7083a0',
+  tags: ['energy', 'physical', 'tension', 'focus', 'beginner']
+},

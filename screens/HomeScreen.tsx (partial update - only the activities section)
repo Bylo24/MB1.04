@@ -1,0 +1,131 @@
+// Inside the return statement, update the activities section:
+
+<View style={styles.activitiesContainer}>
+  <View style={styles.sectionHeaderRow}>
+    <Text style={styles.sectionTitle}>Recommended Activities</Text>
+    {subscriptionTier === 'free' && (
+      <TouchableOpacity 
+        style={styles.upgradeBadge}
+        onPress={handleOpenPremiumModal}
+      >
+        <Ionicons name="diamond" size={16} color={theme.colors.primary} />
+        <Text style={styles.upgradeBadgeText}>UPGRADE</Text>
+      </TouchableOpacity>
+    )}
+  </View>
+  <Text style={styles.sectionSubtitle}>Based on your recent mood patterns</Text>
+  
+  {isLoadingActivities ? (
+    <View style={styles.activitiesLoadingContainer}>
+      <ActivityIndicator size="small" color={theme.colors.primary} />
+      <Text style={styles.activitiesLoadingText}>Personalizing your recommendations...</Text>
+    </View>
+  ) : (
+    activities.map(activity => {
+      // Check if this is a premium activity (ID > 23) and user is on free tier
+      const isPremium = parseInt(activity.id) > 23;
+      const showPremiumLock = isPremium && subscriptionTier === 'free';
+      
+      return (
+        <View key={activity.id} style={styles.activityItem}>
+          <ActivityCard 
+            activity={activity} 
+            isPremium={isPremium}
+            showPremiumBadge={true}
+            onPress={showPremiumLock ? handleOpenPremiumModal : undefined}
+          />
+          {showPremiumLock && (
+            <View style={styles.premiumLockOverlay}>
+              <View style={styles.premiumLockContent}>
+                <Ionicons name="lock-closed" size={24} color="white" />
+                <Text style={styles.premiumLockText}>Premium Feature</Text>
+                <TouchableOpacity 
+                  style={styles.premiumLockButton}
+                  onPress={handleOpenPremiumModal}
+                >
+                  <Text style={styles.premiumLockButtonText}>Upgrade</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          )}
+        </View>
+      );
+    })
+  )}
+  
+  {subscriptionTier === 'free' && (
+    <TouchableOpacity 
+      style={styles.upgradePromoButton}
+      onPress={handleOpenPremiumModal}
+    >
+      <Ionicons name="diamond" size={18} color="white" />
+      <Text style={styles.upgradePromoText}>
+        Unlock {premiumActivities.length - allActivities.length} more activities with Premium
+      </Text>
+    </TouchableOpacity>
+  )}
+</View>
+
+// Add these styles:
+upgradeBadge: {
+  flexDirection: 'row',
+  alignItems: 'center',
+  backgroundColor: theme.colors.primary + '20',
+  paddingHorizontal: 8,
+  paddingVertical: 4,
+  borderRadius: 12,
+},
+upgradeBadgeText: {
+  fontSize: 12,
+  fontWeight: theme.fontWeights.bold,
+  color: theme.colors.primary,
+  marginLeft: 4,
+},
+premiumLockOverlay: {
+  position: 'absolute',
+  top: 0,
+  left: 0,
+  right: 0,
+  bottom: 0,
+  backgroundColor: 'rgba(0, 0, 0, 0.7)',
+  borderRadius: 16,
+  justifyContent: 'center',
+  alignItems: 'center',
+},
+premiumLockContent: {
+  alignItems: 'center',
+  padding: 16,
+},
+premiumLockText: {
+  color: 'white',
+  fontSize: 16,
+  fontWeight: theme.fontWeights.bold,
+  marginTop: 8,
+  marginBottom: 12,
+},
+premiumLockButton: {
+  backgroundColor: theme.colors.primary,
+  paddingHorizontal: 16,
+  paddingVertical: 8,
+  borderRadius: 8,
+},
+premiumLockButtonText: {
+  color: 'white',
+  fontSize: 14,
+  fontWeight: theme.fontWeights.semibold,
+},
+upgradePromoButton: {
+  flexDirection: 'row',
+  alignItems: 'center',
+  justifyContent: 'center',
+  backgroundColor: theme.colors.primary,
+  borderRadius: 12,
+  paddingVertical: 12,
+  marginTop: 8,
+},
+upgradePromoText: {
+  color: 'white',
+  fontSize: 16,
+  fontWeight: theme.fontWeights.semibold,
+  marginLeft: 8,
+},

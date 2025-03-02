@@ -1,0 +1,44 @@
+// ... existing imports ...
+
+export default function SubscriptionScreen({ onClose }: SubscriptionScreenProps) {
+  // ... existing state variables ...
+
+  // Format date for display
+  const formatDate = (dateString: string | null) => {
+    if (!dateString) return 'N/A';
+    const date = new Date(dateString);
+    return date.toLocaleDateString('en-US', { 
+      year: 'numeric', 
+      month: 'long', 
+      day: 'numeric' 
+    });
+  };
+
+  // ... rest of the component ...
+
+  // In the premium user view, update the subscription details section:
+  <View style={styles.subscriptionDetailsCard}>
+    <Text style={styles.detailsTitle}>Subscription Details</Text>
+    
+    <View style={styles.detailRow}>
+      <Text style={styles.detailLabel}>Status:</Text>
+      <View style={styles.statusBadge}>
+        <Text style={styles.statusText}>Active</Text>
+      </View>
+    </View>
+    
+    <View style={styles.detailRow}>
+      <Text style={styles.detailLabel}>Plan:</Text>
+      <Text style={styles.detailValue}>Premium</Text>
+    </View>
+    
+    <View style={styles.detailRow}>
+      <Text style={styles.detailLabel}>Renewal Date:</Text>
+      <Text style={styles.detailValue}>
+        {formatDate(subscriptionDetails?.expires_at)}
+      </Text>
+    </View>
+  </View>
+
+  // ... rest of the component ...
+}

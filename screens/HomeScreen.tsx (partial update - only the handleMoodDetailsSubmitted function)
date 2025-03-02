@@ -1,0 +1,24 @@
+// Handle mood details submission
+const handleMoodDetailsSubmitted = async (rating: MoodRating, details: string) => {
+  console.log('Mood details submitted:', { rating, details });
+  setIsLoadingActivities(true);
+  
+  try {
+    // Get personalized activity recommendations
+    const recommendedActivities = await getActivityRecommendations(rating, details);
+    
+    // Log the recommendations for debugging
+    console.log('Received activity recommendations:', 
+      recommendedActivities.map(a => a.title).join(', ')
+    );
+    
+    // Update the UI with the new recommendations
+    setActivities(recommendedActivities);
+  } catch (error) {
+    console.error('Error getting activity recommendations:', error);
+    // Fallback to default activities
+    setActivities(allActivities.slice(0, 3));
+  } finally {
+    setIsLoadingActivities(false);
+  }
+};

@@ -1,0 +1,127 @@
+// Function to simulate Gemini's activity selection based on mood and details
+function simulateActivityRecommendations(
+  moodRating: number, 
+  moodDetails: string,
+  availableActivities: Activity[]
+): Activity[] {
+  console.log('Simulating activity recommendations for:', { moodRating, moodDetails });
+  
+  // Convert details to lowercase for easier matching
+  const details = moodDetails.toLowerCase();
+  
+  // Create a scoring system for activities based on mood and details
+  const scoredActivities = availableActivities.map(activity => {
+    let score = 0;
+    
+    // Score based on mood rating - give this more weight when details are empty
+    const moodScoreMultiplier = moodDetails ? 1 : 2; // Double the mood-based score if no details
+    
+    if (moodRating <= 2) {
+      // For low mood, prioritize mindfulness and social activities
+      if (activity.category === 'mindfulness') score += 3 * moodScoreMultiplier;
+      if (activity.category === 'social') score += 2 * moodScoreMultiplier;
+      if (activity.moodImpact === 'high') score += 2 * moodScoreMultiplier;
+    } else if (moodRating === 3) {
+      // For neutral mood, balanced approach
+      if (activity.category === 'exercise') score += 2 * moodScoreMultiplier;
+      if (activity.category === 'creative') score += 2 * moodScoreMultiplier;
+      if (activity.duration <= 15) score += 1 * moodScoreMultiplier; // Quick activities
+    } else {
+      // For good mood, enhance it further
+      if (activity.category === 'exercise') score += 3 * moodScoreMultiplier;
+      if (activity.category === 'social') score += 3 * moodScoreMultiplier;
+      if (activity.category === 'creative') score += 2 * moodScoreMultiplier;
+    }
+    
+    // Only process details-based scoring if details are provided
+    if (details) {
+      // Score based on keywords in the details
+      const keywords = {
+        'stress': ['meditation', 'breathing', 'nature', 'relaxation'],
+        'anxiety': ['breathing', 'meditation', 'progressive'],
+        'sad': ['friend', 'music', 'gratitude'],
+        'tired': ['stretching', 'workout', 'walk', 'nap'],
+        'lonely': ['friend', 'letter', 'social'],
+        'bored': ['creative', 'workout', 'declutter'],
+        'angry': ['workout', 'breathing', 'nature'],
+        'happy': ['friend', 'creative', 'music'],
+        'energetic': ['workout', 'walk', 'creative'],
+        'overwhelmed': ['meditation', 'breathing', 'detox'],
+        'motivated': ['workout', 'declutter', 'creative'],
+        'worried': ['meditation', 'breathing', 'friend'],
+        'excited': ['creative', 'social', 'music'],
+        'frustrated': ['workout', 'breathing', 'declutter'],
+        'calm': ['meditation', 'tea', 'reading'],
+        'distracted': ['meditation', 'focus', 'breathing']
+      };
+      
+      // Check if any keywords from the user's details match our mapping
+      for (const [keyword, relatedActivities] of Object.entries(keywords)) {
+        if (details.includes(keyword)) {
+          // If the activity title or description contains any related activity keyword
+          for (const relatedActivity of relatedActivities) {
+            if (
+              activity.title.toLowerCase().includes(relatedActivity) || 
+              activity.description.toLowerCase().includes(relatedActivity) ||
+              activity.category.toLowerCase().includes(relatedActivity) ||
+              activity.tags?.some(tag => tag.includes(relatedActivity))
+            ) {
+              score += 3;
+            }
+          }
+        }
+      }
+      
+      // Additional scoring based on specific words in the details
+      const specificMatches = [
+        { words: ['work', 'job', 'busy', 'deadline'], categories: ['mindfulness'], bonus: 2 },
+        { words: ['sleep', 'tired', 'exhausted', 'insomnia'], activities: ['Progressive Muscle Relaxation', 'Deep Breathing', 'Power Nap'], bonus: 3 },
+        { words: ['friend', 'social', 'people', 'family'], categories: ['social'], bonus: 3 },
+        { words: ['creative', 'express', 'art'], categories: ['creative'], bonus: 3 },
+        { words: ['exercise', 'workout', 'active'], categories: ['exercise'], bonus: 3 },
+        { words: ['calm', 'peace', 'quiet'], categories: ['mindfulness', 'relaxation'], bonus: 2 },
+        { words: ['focus', 'concentrate', 'distracted'], activities: ['5-Minute Meditation', 'Mindful Tea Ritual'], bonus: 2 },
+        { words: ['happy', 'joy', 'excited'], activities: ['Dance Break', 'Call a Friend', 'Laugh Therapy'], bonus: 3 },
+        { words: ['anxious', 'panic', 'worry'], activities: ['Deep Breathing', 'Progressive Muscle Relaxation', 'Mindful Walking'], bonus: 3 },
+        { words: ['sad', 'down', 'depressed'], activities: ['Call a Friend', 'Gratitude Journaling', 'Listen to Uplifting Music'], bonus: 3 },
+        { words: ['angry', 'frustrated', 'irritated'], activities: ['Quick Workout', 'Deep Breathing', 'Nature Walk'], bonus: 3 },
+        { words: ['bored', 'restless', 'uninterested'], activities: ['Creative Drawing', 'Dance Break', 'Quick Workout'], bonus: 3 },
+      ];
+      
+      for (const match of specificMatches) {
+        if (match.words.some(word => details.includes(word))) {
+          if (match.categories && match.categories.includes(activity.category)) {
+            score += match.bonus;
+          }
+          if (match.activities && match.activities.includes(activity.title)) {
+            score += match.bonus;
+          }
+        }
+      }
+      
+      // Bonus for short activities if the user mentions being busy
+      if ((details.includes('busy') || details.includes('no time')) && activity.duration <= 10) {
+        score += 2;
+      }
+      
+      // Bonus for longer activities if the user has time
+      if ((details.includes('free time') || details.includes('weekend')) && activity.duration >= 20) {
+        score += 2;
+      }
+    }
+    
+    // Add a small random factor to prevent the same recommendations every time
+    score += Math.random() * 0.5;
+    
+    return { activity, score };
+  });
+  
+  // Sort by score (highest first) and take the top 3
+  const topActivities = scoredActivities
+    .sort((a, b) => b.score - a.score)
+    .slice(0, 3)
+    .map(item => item.activity);
+  
+  console.log('Selected activities based on simulation:', topActivities.map(a => a.title));
+  return topActivities;
+}

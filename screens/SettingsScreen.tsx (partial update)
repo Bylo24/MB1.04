@@ -1,0 +1,98 @@
+import React, { useState, useEffect } from 'react';
+import { StyleSheet, View, Text, TouchableOpacity, Switch, ScrollView, SafeAreaView, StatusBar } from 'react-native';
+import { Ionicons, FontAwesome } from '@expo/vector-icons';
+import { theme } from '../theme/theme';
+import { getCurrentSubscriptionTier } from '../services/subscriptionService';
+import SubscriptionScreen from './SubscriptionScreen';
+
+// ... existing code ...
+
+export default function SettingsScreen({ onClose, onLogout }: SettingsScreenProps) {
+  // ... existing state variables ...
+  
+  const [subscriptionTier, setSubscriptionTier] = useState<'free' | 'premium'>('free');
+  const [showSubscriptionScreen, setShowSubscriptionScreen] = useState(false);
+  
+  useEffect(() => {
+    const loadSubscriptionStatus = async () => {
+      try {
+        const tier = await getCurrentSubscriptionTier();
+        setSubscriptionTier(tier);
+      } catch (error) {
+        console.error('Error loading subscription status:', error);
+      }
+    };
+    
+    loadSubscriptionStatus();
+  }, []);
+  
+  // ... existing code ...
+  
+  // Handle subscription screen
+  const handleViewSubscription = () => {
+    setShowSubscriptionScreen(true);
+  };
+  
+  const handleCloseSubscriptionScreen = () => {
+    setShowSubscriptionScreen(false);
+    // Refresh subscription status when modal is closed
+    const refreshSubscription = async () => {
+      const tier = await getCurrentSubscriptionTier();
+      setSubscriptionTier(tier);
+    };
+    refreshSubscription();
+  };
+  
+  // ... existing code ...
+  
+  if (showSubscriptionScreen) {
+    return (
+      <SubscriptionScreen onClose={handleCloseSubscriptionScreen} />
+    );
+  }
+  
+  return (
+    <SafeAreaView style={styles.safeArea}>
+      <StatusBar barStyle="light-content" backgroundColor={theme.colors.background} />
+      
+      <View style={styles.header}>
+        <TouchableOpacity onPress={onClose} style={styles.closeButton}>
+          <Ionicons name="close" size={24} color={theme.colors.text} />
+        </TouchableOpacity>
+        <Text style={styles.headerTitle}>Settings</Text>
+      </View>
+      
+      <ScrollView style={styles.container}>
+        {/* Subscription Button - Matches other setting items */}
+        <TouchableOpacity 
+          style={styles.settingItem}
+          onPress={handleViewSubscription}
+        >
+          <View style={styles.settingItemLeft}>
+            <View style={[styles.iconContainer, { backgroundColor: theme.colors.premium + '20' }]}>
+              <FontAwesome name="diamond" size={20} color={theme.colors.premium} />
+            </View>
+            <View style={styles.settingTextContainer}>
+              <Text style={styles.settingTitle}>
+                {subscriptionTier === 'premium' ? 'Manage Subscription' : 'Upgrade to Premium'}
+              </Text>
+              <Text style={styles.settingDescription}>
+                {subscriptionTier === 'premium' 
+                  ? 'View and manage your premium subscription' 
+                  : 'Unlock all premium features and benefits'}
+              </Text>
+            </View>
+          </View>
+          <Ionicons name="chevron-forward" size={20} color={theme.colors.subtext} />
+        </TouchableOpacity>
+        
+        {/* Divider */}
+        <View style={styles.divider} />
+        
+        {/* ... existing sections ... */}
+      </ScrollView>
+    </SafeAreaView>
+  );
+}
+
+// ... existing styles ...
