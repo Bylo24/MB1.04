@@ -171,10 +171,14 @@ export default function SubscriptionComparisonScreen({
             <View style={styles.benefitsList}>
               <BenefitItem text="Unlimited Mood Check-ins" />
               <BenefitItem text="Advanced Mood Analytics" />
-              <BenefitItem text="AI-Driven Recommendations" />
+              <BenefitItem text="Smart Activity Recommendations" />
               <BenefitItem text="Customizable Mood Tracking" />
               <BenefitItem text="Guided Exercises & Meditations" />
-              <BenefitItem text="And much more..." />
+              <BenefitItem text="Unlock More Streak Rewards" />
+              <BenefitItem text="AI Mood Predictions" />
+              <BenefitItem text="Personalized Themes" />
+              <BenefitItem text="Journaling Feature" />
+              <BenefitItem text="No Ads" />
             </View>
           </View>
           
@@ -235,7 +239,7 @@ export default function SubscriptionComparisonScreen({
             currentTier === 'free' && styles.currentPlanCard
           ]}>
             <View style={styles.planHeader}>
-              <Text style={styles.planTitle}>🆓 Free Plan</Text>
+              <Text style={styles.planTitle}>🆓 Free Version</Text>
               {currentTier === 'free' && (
                 <View style={styles.currentPlanBadge}>
                   <Text style={styles.currentPlanText}>Current</Text>
@@ -245,13 +249,13 @@ export default function SubscriptionComparisonScreen({
             
             <View style={styles.featuresContainer}>
               <FeatureItem text="Daily Mood Tracking – Once per day" />
-              <FeatureItem text="Basic Mood Summary" />
-              <FeatureItem text="Simple Mood Trends Graph" />
+              <FeatureItem text="Mood Summary – Today, weekly average, streak" />
+              <FeatureItem text="Basic Mood Trends – Simple graph of past moods" />
               <FeatureItem text="Daily Mental Health Quote" />
-              <FeatureItem text="Limited Activity Recommendations" />
+              <FeatureItem text="Limited Recommended Activities" />
               <FeatureItem text="Basic Streak Tracking" />
               <FeatureItem text="Light & Dark Mode" />
-              <FeatureItem text="Basic Daily Notifications" />
+              <FeatureItem text="Basic Notifications" />
             </View>
           </View>
           
@@ -262,7 +266,7 @@ export default function SubscriptionComparisonScreen({
             currentTier === 'premium' && styles.currentPlanCard
           ]}>
             <View style={styles.planHeader}>
-              <Text style={[styles.planTitle, styles.premiumPlanTitle]}>💎 Premium Plan</Text>
+              <Text style={[styles.planTitle, styles.premiumPlanTitle]}>💎 Premium Version</Text>
               {currentTier === 'premium' && (
                 <View style={styles.currentPlanBadge}>
                   <Text style={styles.currentPlanText}>Current</Text>
@@ -271,16 +275,16 @@ export default function SubscriptionComparisonScreen({
             </View>
             
             <View style={styles.featuresContainer}>
-              <FeatureItem text="Unlimited Mood Check-ins" isPremium />
-              <FeatureItem text="Advanced Mood Analytics & Reports" isPremium />
-              <FeatureItem text="AI-Driven Activity Recommendations" isPremium />
-              <FeatureItem text="Customizable Mood Tracking" isPremium />
-              <FeatureItem text="Guided Exercises & Meditations" isPremium />
-              <FeatureItem text="Enhanced Streak Rewards" isPremium />
-              <FeatureItem text="AI Mood Predictions" isPremium />
-              <FeatureItem text="Personalized Themes" isPremium />
-              <FeatureItem text="Journaling Feature" isPremium />
-              <FeatureItem text="Ad-Free Experience" isPremium />
+              <FeatureItem text="Unlimited Mood Check-ins – Multiple times a day" isPremium />
+              <FeatureItem text="Advanced Mood Analytics – Detailed insights & reports" isPremium />
+              <FeatureItem text="Smart Activity Recommendations – AI-driven suggestions" isPremium />
+              <FeatureItem text="Customizable Mood Tracking – Add notes, tags, details" isPremium />
+              <FeatureItem text="Guided Exercises & Meditations – Tailored content" isPremium />
+              <FeatureItem text="Unlock More Streak Rewards – Badges, recovery options" isPremium />
+              <FeatureItem text="AI Mood Predictions – Future mood trend insights" isPremium />
+              <FeatureItem text="Personalized Themes – More color schemes" isPremium />
+              <FeatureItem text="Journaling Feature – Add diary entries" isPremium />
+              <FeatureItem text="No Ads – Completely ad-free experience" isPremium />
             </View>
           </View>
         </View>

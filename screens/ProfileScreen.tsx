@@ -9,6 +9,7 @@ import { supabase } from '../utils/supabaseClient';
 import { MoodRating } from '../types';
 import { getCurrentSubscriptionTier, SubscriptionTier, toggleSubscriptionForDemo } from '../services/subscriptionService';
 import PremiumFeatureModal from '../components/PremiumFeatureModal';
+import SubscriptionComparisonScreen from './SubscriptionComparisonScreen';
 
 interface ProfileScreenProps {
   onClose: () => void;
@@ -29,6 +30,7 @@ export default function ProfileScreen({ onClose, onLogout }: ProfileScreenProps)
   const [notificationsEnabled, setNotificationsEnabled] = useState(true);
   const [premiumModalVisible, setPremiumModalVisible] = useState(false);
   const [isUpdatingSubscription, setIsUpdatingSubscription] = useState(false);
+  const [subscriptionComparisonVisible, setSubscriptionComparisonVisible] = useState(false);
   
   // Edit profile states
   const [editProfileModalVisible, setEditProfileModalVisible] = useState(false);
@@ -281,6 +283,19 @@ export default function ProfileScreen({ onClose, onLogout }: ProfileScreenProps)
     }
   };
   
+  // Open subscription comparison screen
+  const handleOpenSubscriptionComparison = () => {
+    setSubscriptionComparisonVisible(true);
+  };
+  
+  // Close subscription comparison screen
+  const handleCloseSubscriptionComparison = async () => {
+    setSubscriptionComparisonVisible(false);
+    // Refresh subscription tier after closing
+    const tier = await getCurrentSubscriptionTier();
+    setSubscriptionTier(tier);
+  };
+  
   // Open premium modal
   const handleOpenPremiumModal = () => {
     if (subscriptionTier === 'premium') {
@@ -298,8 +313,8 @@ export default function ProfileScreen({ onClose, onLogout }: ProfileScreenProps)
         ]
       );
     } else {
-      // If free, show upgrade modal
-      setPremiumModalVisible(true);
+      // If free, show subscription comparison screen
+      handleOpenSubscriptionComparison();
     }
   };
   
@@ -309,6 +324,17 @@ export default function ProfileScreen({ onClose, onLogout }: ProfileScreenProps)
         <ActivityIndicator size="large" color={theme.colors.primary} />
         <Text style={styles.loadingText}>Loading profile...</Text>
       </View>
+    );
+  }
+  
+  if (subscriptionComparisonVisible) {
+    return (
+      <SubscriptionComparisonScreen 
+        onClose={handleCloseSubscriptionComparison}
+        onSubscribe={handleSubscriptionToggle}
+        showCloseButton={true}
+        source="upgrade"
+      />
     );
   }
   
@@ -410,7 +436,7 @@ export default function ProfileScreen({ onClose, onLogout }: ProfileScreenProps)
                 subscriptionTier === 'premium' ? styles.cancelButton : styles.upgradeButton,
                 isUpdatingSubscription && styles.disabledButton
               ]}
-              onPress={handleSubscriptionToggle}
+              onPress={subscriptionTier === 'premium' ? handleSubscriptionToggle : handleOpenSubscriptionComparison}
               disabled={isUpdatingSubscription}
             >
               {isUpdatingSubscription ? (
@@ -653,7 +679,7 @@ export default function ProfileScreen({ onClose, onLogout }: ProfileScreenProps)
       <PremiumFeatureModal
         visible={premiumModalVisible}
         onClose={() => setPremiumModalVisible(false)}
-        onUpgrade={handleSubscriptionToggle}
+        onUpgrade={handleOpenSubscriptionComparison}
         featureName="Unlock Premium Features"
         featureDescription="Take your mood tracking to the next level with premium features designed to help you understand and improve your mental wellbeing."
       />

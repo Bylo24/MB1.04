@@ -43,8 +43,16 @@ export default function PremiumFeatureModal({
             <Text style={styles.featureDescription}>{featureDescription}</Text>
           )}
           
-          <TouchableOpacity style={styles.upgradeButton} onPress={onUpgrade}>
-            <Text style={styles.upgradeButtonText}>Upgrade to Premium</Text>
+          <TouchableOpacity 
+            style={styles.upgradeButton} 
+            onPress={() => {
+              onClose(); // Close this modal first
+              setTimeout(() => {
+                onUpgrade(); // Then open the subscription screen
+              }, 300);
+            }}
+          >
+            <Text style={styles.upgradeButtonText}>See Premium Plans</Text>
           </TouchableOpacity>
           
           <TouchableOpacity style={styles.notNowButton} onPress={onClose}>

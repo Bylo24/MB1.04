@@ -1,7 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { StatusBar } from 'expo-status-bar';
-import { SafeAreaView, StyleSheet, View, Text, ActivityIndicator } from 'react-native';
-import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { StyleSheet, Text, View, ActivityIndicator } from 'react-native';
+import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
+import { NavigationContainer } from '@react-navigation/native';
+import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { theme } from './theme/theme';
 import HomeScreen from './screens/HomeScreen';
 import LoginScreen from './screens/LoginScreen';
@@ -12,14 +14,22 @@ import { isAuthenticated, signOut, getCurrentUser } from './services/authService
 import { supabase } from './utils/supabaseClient';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-// Define app states
-type AppState = 'loading' | 'login' | 'onboarding-name' | 'onboarding-intro' | 'onboarding-tips' | 'home';
+// Define navigation stack param list
+type RootStackParamList = {
+  Login: undefined;
+  SetupName: undefined;
+  Introduction: { userName: string };
+  Tips: undefined;
+  Home: undefined;
+};
+
+const Stack = createNativeStackNavigator<RootStackParamList>();
 
 export default function App() {
-  const [appState, setAppState] = useState<AppState>('loading');
   const [isLoading, setIsLoading] = useState(true);
   const [userName, setUserName] = useState<string>('');
   const [isNewUser, setIsNewUser] = useState(false);
+  const [initialRouteName, setInitialRouteName] = useState<keyof RootStackParamList>('Login');
   
   // Check authentication status when app loads
   useEffect(() => {
@@ -35,7 +45,7 @@ export default function App() {
         checkOnboardingStatus();
       } else if (event === 'SIGNED_OUT' || event === 'USER_DELETED') {
         console.log('User signed out, updating UI');
-        setAppState('login');
+        setInitialRouteName('Login');
         setIsLoading(false);
       }
     });
@@ -56,12 +66,12 @@ export default function App() {
       if (authenticated) {
         await checkOnboardingStatus();
       } else {
-        setAppState('login');
+        setInitialRouteName('Login');
+        setIsLoading(false);
       }
     } catch (error) {
       console.error('Error checking auth:', error);
-      setAppState('login');
-    } finally {
+      setInitialRouteName('Login');
       setIsLoading(false);
     }
   };
@@ -88,7 +98,7 @@ export default function App() {
             await AsyncStorage.setItem('user_display_name', emailName);
           }
         }
-        setAppState('home');
+        setInitialRouteName('Home');
       } else {
         // Check if this is a new user or returning user
         if (isNewUser) {
@@ -98,7 +108,7 @@ export default function App() {
           
           if (storedName) {
             setUserName(storedName);
-            setAppState('onboarding-intro');
+            setInitialRouteName('Introduction');
           } else {
             // Get user email to extract name if available
             const user = await getCurrentUser();
@@ -108,7 +118,7 @@ export default function App() {
             }
             
             console.log('User needs to complete onboarding');
-            setAppState('onboarding-name');
+            setInitialRouteName('SetupName');
           }
         } else {
           // Returning user - skip onboarding and mark as completed
@@ -130,12 +140,14 @@ export default function App() {
             }
           }
           
-          setAppState('home');
+          setInitialRouteName('Home');
         }
       }
     } catch (error) {
       console.error('Error checking onboarding status:', error);
-      setAppState('onboarding-name');
+      setInitialRouteName('SetupName');
+    } finally {
+      setIsLoading(false);
     }
   };
   
@@ -146,60 +158,13 @@ export default function App() {
     checkOnboardingStatus();
   };
   
-  // Handle name setup completion
-  const handleNameComplete = async (name: string) => {
-    console.log('Name setup complete with name:', name);
-    try {
-      await AsyncStorage.setItem('user_display_name', name);
-      setUserName(name);
-      setAppState('onboarding-intro');
-    } catch (error) {
-      console.error('Error saving user name:', error);
-      // Proceed anyway
-      setAppState('onboarding-intro');
-    }
-  };
-  
-  // Handle name setup skip
-  const handleNameSkip = async () => {
-    console.log('Name setup skipped');
-    // If we have a username from email, use that
-    if (userName) {
-      try {
-        await AsyncStorage.setItem('user_display_name', userName);
-      } catch (error) {
-        console.error('Error saving default user name:', error);
-      }
-    }
-    setAppState('onboarding-intro');
-  };
-  
-  // Handle introduction completion
-  const handleIntroComplete = () => {
-    console.log('Introduction complete');
-    setAppState('onboarding-tips');
-  };
-  
-  // Handle tips completion
-  const handleTipsComplete = async () => {
-    console.log('Tips complete, onboarding finished');
-    try {
-      await AsyncStorage.setItem('onboarding_completed', 'true');
-      setAppState('home');
-    } catch (error) {
-      console.error('Error saving onboarding status:', error);
-      // Proceed anyway
-      setAppState('home');
-    }
-  };
-  
   // Handle logout
   const handleLogout = async () => {
     try {
       console.log('Logging out...');
       await signOut();
       console.log('Logout successful, updating UI');
-      setAppState('login');
+      setInitialRouteName('Login');
     } catch (error) {
       console.error('Error signing out:', error);
     }
@@ -219,45 +184,82 @@ export default function App() {
   
   return (
     <SafeAreaProvider>
-      <SafeAreaView style={styles.container}>
+      <NavigationContainer>
         <StatusBar style="light" />
-        {appState === 'login' && (
-          <LoginScreen onLogin={handleLogin} />
-        )}
-        
-        {appState === 'onboarding-name' && (
-          <SetupNameScreen 
-            onComplete={handleNameComplete}
-            onSkip={handleNameSkip}
-          />
-        )}
-        
-        {appState === 'onboarding-intro' && (
-          <IntroductionScreen 
-            onComplete={handleIntroComplete}
-            userName={userName}
-          />
-        )}
-        
-        {appState === 'onboarding-tips' && (
-          <TipsScreen 
-            onComplete={handleTipsComplete}
-          />
-        )}
-        
-        {appState === 'home' && (
-          <HomeScreen onLogout={handleLogout} />
-        )}
-      </SafeAreaView>
+        <Stack.Navigator 
+          initialRouteName={initialRouteName}
+          screenOptions={{ 
+            headerShown: false,
+            contentStyle: { backgroundColor: theme.colors.background }
+          }}
+        >
+          <Stack.Screen name="Login">
+            {props => <LoginScreen {...props} onLogin={handleLogin} />}
+          </Stack.Screen>
+          
+          <Stack.Screen name="SetupName">
+            {props => (
+              <SetupNameScreen 
+                {...props}
+                onComplete={(name) => {
+                  AsyncStorage.setItem('user_display_name', name).then(() => {
+                    setUserName(name);
+                    props.navigation.navigate('Introduction');
+                  });
+                }}
+                onSkip={() => {
+                  if (userName) {
+                    AsyncStorage.setItem('user_display_name', userName).catch(err => 
+                      console.error('Error saving default user name:', err)
+                    );
+                  }
+                  props.navigation.navigate('Introduction');
+                }}
+              />
+            )}
+          </Stack.Screen>
+          
+          <Stack.Screen name="Introduction" initialParams={{ userName }}>
+            {props => (
+              <IntroductionScreen 
+                {...props}
+                onComplete={() => props.navigation.navigate('Tips')}
+                userName={userName}
+              />
+            )}
+          </Stack.Screen>
+          
+          <Stack.Screen name="Tips">
+            {props => (
+              <TipsScreen 
+                {...props}
+                onComplete={() => {
+                  AsyncStorage.setItem('onboarding_completed', 'true').then(() => {
+                    props.navigation.navigate('Home');
+                  }).catch(error => {
+                    console.error('Error saving onboarding status:', error);
+                    props.navigation.navigate('Home');
+                  });
+                }}
+              />
+            )}
+          </Stack.Screen>
+          
+          <Stack.Screen name="Home">
+            {props => (
+              <HomeScreen 
+                {...props}
+                onLogout={handleLogout}
+              />
+            )}
+          </Stack.Screen>
+        </Stack.Navigator>
+      </NavigationContainer>
     </SafeAreaProvider>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: theme.colors.background,
-  },
   loadingContainer: {
     flex: 1,
     backgroundColor: theme.colors.background,

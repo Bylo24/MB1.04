@@ -19,6 +19,13 @@ export default function PremiumFeaturePromo({ onUpgrade }: PremiumFeaturePromoPr
     setModalVisible(false);
   };
   
+  const handleUpgrade = () => {
+    setModalVisible(false);
+    setTimeout(() => {
+      onUpgrade();
+    }, 300);
+  };
+  
   return (
     <>
       <TouchableOpacity 
@@ -66,7 +73,7 @@ export default function PremiumFeaturePromo({ onUpgrade }: PremiumFeaturePromoPr
             style={styles.upgradeButton}
             onPress={handlePress}
           >
-            <Text style={styles.upgradeButtonText}>Upgrade Now</Text>
+            <Text style={styles.upgradeButtonText}>See Premium Plans</Text>
           </TouchableOpacity>
         </View>
       </TouchableOpacity>
@@ -74,7 +81,7 @@ export default function PremiumFeaturePromo({ onUpgrade }: PremiumFeaturePromoPr
       <PremiumFeatureModal
         visible={modalVisible}
         onClose={handleClose}
-        onUpgrade={onUpgrade}
+        onUpgrade={handleUpgrade}
         featureName="Unlock Premium Features"
         featureDescription="Take your mood tracking to the next level with premium features designed to help you understand and improve your mental wellbeing."
       />
