@@ -10,7 +10,8 @@ import {
   Platform,
   ScrollView,
   Alert,
-  Keyboard
+  Keyboard,
+  Image
 } from 'react-native';
 import { theme } from '../theme/theme';
 import { signInWithEmail, signUpWithEmail, resetPassword, resendConfirmationEmail } from '../services/authService';
@@ -226,6 +227,10 @@ export default function LoginScreen({ onLogin }: LoginScreenProps) {
         keyboardShouldPersistTaps="handled"
       >
         <View style={styles.logoContainer}>
+          <Image 
+            source={require('../assets/icon.png')} 
+            style={styles.logo} 
+          />
           <Text style={styles.logoText}>Mood Buddy</Text>
           <Text style={styles.tagline}>Track your mood, improve your wellbeing</Text>
         </View>
@@ -399,6 +404,12 @@ const styles = StyleSheet.create({
   logoContainer: {
     alignItems: 'center',
     marginBottom: 40,
+  },
+  logo: {
+    width: 80,
+    height: 80,
+    resizeMode: 'contain',
+    marginBottom: 16,
   },
   logoText: {
     fontSize: 32,

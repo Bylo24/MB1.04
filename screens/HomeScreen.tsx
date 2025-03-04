@@ -1,15 +1,18 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { StyleSheet, Text, View, ScrollView, Dimensions, SafeAreaView, StatusBar, AppState, ActivityIndicator } from 'react-native';
+import { StyleSheet, Text, View, ScrollView, Dimensions, SafeAreaView, StatusBar, AppState, ActivityIndicator, TouchableOpacity } from 'react-native';
 import { theme } from '../theme/theme';
+import { Ionicons } from '@expo/vector-icons';
 import MoodSlider from '../components/MoodSlider';
 import ActivityCard from '../components/ActivityCard';
 import MoodTrendGraph from '../components/MoodTrendGraph';
 import QuoteComponent from '../components/QuoteComponent';
 import Header from '../components/Header';
 import ProfileModal from '../components/ProfileModal';
+import PremiumFeatureBadge from '../components/PremiumFeatureBadge';
 import { MoodRating, Activity } from '../types';
 import { getTodayMoodEntry, getRecentMoodEntries, getMoodStreak, getWeeklyAverageMood, getCurrentWeekMoodEntries } from '../services/moodService';
 import { getCurrentUser, isAuthenticated } from '../services/authService';
+import { getCurrentSubscriptionTier } from '../services/subscriptionService';
 import { recommendedActivities } from '../data/mockData';
 import { supabase } from '../utils/supabaseClient';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -20,9 +23,10 @@ const { width: screenWidth } = Dimensions.get('window');
 
 interface HomeScreenProps {
   onLogout: () => void;
+  navigation: any;
 }
 
-export default function HomeScreen({ onLogout }: HomeScreenProps) {
+export default function HomeScreen({ onLogout, navigation }: HomeScreenProps) {
   // State for selected mood (now can be null)
   const [selectedMood, setSelectedMood] = useState<MoodRating | null>(null);
   const [userName, setUserName] = useState<string>('');
@@ -34,6 +38,7 @@ export default function HomeScreen({ onLogout }: HomeScreenProps) {
   const [isSliderDisabled, setIsSliderDisabled] = useState(false);
   const [activities, setActivities] = useState<Activity[]>(recommendedActivities.slice(0, 3));
   const [isLoadingActivities, setIsLoadingActivities] = useState(false);
+  const [isPremium, setIsPremium] = useState(false);
   
   // State for mood trend graph refresh
   const [trendGraphKey, setTrendGraphKey] = useState(0);
@@ -184,6 +189,15 @@ export default function HomeScreen({ onLogout }: HomeScreenProps) {
             await AsyncStorage.setItem('user_display_name', name);
           }
           
+          // Check subscription status
+          try {
+            const tier = await getCurrentSubscriptionTier();
+            setIsPremium(tier === 'premium');
+          } catch (error) {
+            console.error('Error checking subscription status:', error);
+            setIsPremium(false);
+          }
+          
           // Load mood data
           await refreshMoodData();
           
@@ -270,6 +284,30 @@ export default function HomeScreen({ onLogout }: HomeScreenProps) {
     
     // Refresh data when profile modal is closed (in case settings were changed)
     refreshMoodData();
+    
+    // Check subscription status again
+    const checkSubscription = async () => {
+      try {
+        const tier = await getCurrentSubscriptionTier();
+        setIsPremium(tier === 'premium');
+      } catch (error) {
+        console.error('Error checking subscription status:', error);
+      }
+    };
+    
+    checkSubscription();
+  };
+  
+  // Handle premium feature button press
+  const handlePremiumFeaturePress = (featureName: string) => {
+    if (isPremium) {
+      // If user is premium, we would navigate to the feature
+      // For now, just log the action
+      console.log(`Premium feature pressed: ${featureName}`);
+    } else {
+      // If user is not premium, navigate to subscription comparison screen
+      navigation.navigate('SubscriptionComparison', { source: 'upgrade' });
+    }
   };
   
   function getMoodEmoji(rating: number | null): string {
@@ -327,6 +365,90 @@ export default function HomeScreen({ onLogout }: HomeScreenProps) {
         
         <QuoteComponent key={quoteKey} />
         
+        {/* Premium Features Section */}
+        <View style={styles.premiumFeaturesContainer}>
+          {/* Guided Exercises & Meditations Button */}
+          <TouchableOpacity 
+            style={styles.premiumFeatureButton}
+            onPress={() => handlePremiumFeaturePress('GuidedExercises')}
+          >
+            <View style={styles.premiumFeatureContent}>
+              <View style={styles.premiumFeatureIconContainer}>
+                <Ionicons name="flower-outline" size={24} color={theme.colors.background} />
+              </View>
+              <View style={styles.premiumFeatureTextContainer}>
+                <Text style={styles.premiumFeatureTitle}>Guided Exercises & Meditations</Text>
+                <Text style={styles.premiumFeatureSubtitle}>
+                  Exclusive content tailored to your moods
+                </Text>
+              </View>
+              {!isPremium && (
+                <PremiumFeatureBadge
+                  featureName="Guided Exercises & Meditations"
+                  featureDescription="Access our library of guided exercises and meditations tailored to your specific moods. Perfect for managing stress, anxiety, and improving your overall wellbeing."
+                  onUpgrade={() => navigation.navigate('SubscriptionComparison', { source: 'upgrade' })}
+                  small
+                />
+              )}
+              <Ionicons name="chevron-forward" size={20} color={theme.colors.text} />
+            </View>
+          </TouchableOpacity>
+          
+          {/* Streak Rewards Button */}
+          <TouchableOpacity 
+            style={styles.premiumFeatureButton}
+            onPress={() => handlePremiumFeaturePress('StreakRewards')}
+          >
+            <View style={styles.premiumFeatureContent}>
+              <View style={[styles.premiumFeatureIconContainer, { backgroundColor: theme.colors.accent }]}>
+                <Ionicons name="trophy-outline" size={24} color={theme.colors.background} />
+              </View>
+              <View style={styles.premiumFeatureTextContainer}>
+                <Text style={styles.premiumFeatureTitle}>Streak Rewards</Text>
+                <Text style={styles.premiumFeatureSubtitle}>
+                  {isPremium ? 'Special badges, streak recovery options' : 'Unlock more rewards with premium'}
+                </Text>
+              </View>
+              {!isPremium && (
+                <PremiumFeatureBadge
+                  featureName="Premium Streak Rewards"
+                  featureDescription="Unlock special badges, achievements, and streak recovery options with a premium subscription."
+                  onUpgrade={() => navigation.navigate('SubscriptionComparison', { source: 'upgrade' })}
+                  small
+                />
+              )}
+              <Ionicons name="chevron-forward" size={20} color={theme.colors.text} />
+            </View>
+          </TouchableOpacity>
+          
+          {/* AI Mood Predictions Button */}
+          <TouchableOpacity 
+            style={styles.premiumFeatureButton}
+            onPress={() => handlePremiumFeaturePress('MoodPredictions')}
+          >
+            <View style={styles.premiumFeatureContent}>
+              <View style={[styles.premiumFeatureIconContainer, { backgroundColor: '#9C27B0' }]}>
+                <Ionicons name="analytics-outline" size={24} color={theme.colors.background} />
+              </View>
+              <View style={styles.premiumFeatureTextContainer}>
+                <Text style={styles.premiumFeatureTitle}>AI Mood Predictions</Text>
+                <Text style={styles.premiumFeatureSubtitle}>
+                  Get insights into future mood trends
+                </Text>
+              </View>
+              {!isPremium && (
+                <PremiumFeatureBadge
+                  featureName="AI Mood Predictions"
+                  featureDescription="Our AI analyzes your mood patterns to predict future trends and provide personalized insights to help you prepare for potential mood changes."
+                  onUpgrade={() => navigation.navigate('SubscriptionComparison', { source: 'upgrade' })}
+                  small
+                />
+              )}
+              <Ionicons name="chevron-forward" size={20} color={theme.colors.text} />
+            </View>
+          </TouchableOpacity>
+        </View>
+        
         <View style={styles.moodCheckInContainer}>
           <Text style={styles.sectionTitle}>How are you feeling today?</Text>
           <MoodSlider 
@@ -367,10 +489,15 @@ export default function HomeScreen({ onLogout }: HomeScreenProps) {
               
               <View style={styles.divider} />
               
-              <View style={styles.summaryItem}>
+              <TouchableOpacity 
+                style={styles.summaryItem}
+                onPress={() => handlePremiumFeaturePress('StreakRewards')}
+              >
                 <Text style={styles.summaryLabel}>Streak</Text>
-                <Text style={[styles.summaryValue, styles.streakValue]}>{streak} days</Text>
-              </View>
+                <View style={styles.streakContainer}>
+                  <Text style={[styles.summaryValue, styles.streakValue]}>{streak} days</Text>
+                </View>
+              </TouchableOpacity>
             </View>
             
             <View style={styles.trendContainer}>
@@ -442,6 +569,47 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: theme.colors.subtext,
     marginTop: 4,
+  },
+  // Premium Features Section
+  premiumFeaturesContainer: {
+    marginBottom: 24,
+  },
+  premiumFeatureButton: {
+    backgroundColor: theme.colors.card,
+    borderRadius: 16,
+    marginBottom: 12,
+    ...theme.shadows.medium,
+  },
+  premiumFeatureContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 16,
+  },
+  premiumFeatureIconContainer: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: theme.colors.primary,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
+  },
+  premiumFeatureTextContainer: {
+    flex: 1,
+  },
+  premiumFeatureTitle: {
+    fontSize: 16,
+    fontWeight: theme.fontWeights.bold,
+    color: theme.colors.text,
+  },
+  premiumFeatureSubtitle: {
+    fontSize: 14,
+    color: theme.colors.subtext,
+    marginTop: 2,
+  },
+  streakContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
   },
   moodCheckInContainer: {
     marginBottom: 24,

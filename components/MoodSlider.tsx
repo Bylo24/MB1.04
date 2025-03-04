@@ -5,6 +5,7 @@ import { MoodRating } from '../types';
 import { theme } from '../theme/theme';
 import { supabase } from '../utils/supabaseClient';
 import MoodDetailsInput from './MoodDetailsInput';
+import { getCurrentSubscriptionTier } from '../services/subscriptionService';
 
 interface MoodSliderProps {
   value: MoodRating | null;
@@ -40,6 +41,8 @@ export default function MoodSlider({
   const [hasUserMoved, setHasUserMoved] = useState(false);
   const [localMoodValue, setLocalMoodValue] = useState<MoodRating | null>(value);
   const [showDetailsInput, setShowDetailsInput] = useState(false);
+  const [subscriptionTier, setSubscriptionTier] = useState<'free' | 'premium'>('free');
+  const [freeLimitReached, setFreeLimitReached] = useState(false);
   const initialLoadRef = useRef(true);
   const prevValueRef = useRef<MoodRating | null>(null);
   
@@ -116,6 +119,16 @@ export default function MoodSlider({
     }
   }, [localMoodValue, animateEmoji]);
   
+  // Check subscription tier
+  useEffect(() => {
+    const checkSubscription = async () => {
+      const tier = await getCurrentSubscriptionTier();
+      setSubscriptionTier(tier);
+    };
+    
+    checkSubscription();
+  }, []);
+  
   // Load today's mood entry when component mounts
   useEffect(() => {
     const loadTodayMood = async () => {
@@ -152,6 +165,7 @@ export default function MoodSlider({
             console.log('No mood entry found for today');
             onValueChange(null);
             setIsSaved(false);
+            setFreeLimitReached(false);
           } else {
             console.error('Error fetching mood entry:', error);
           }
@@ -162,6 +176,12 @@ export default function MoodSlider({
           
           // Check if the entry is editable (today's entry)
           setIsEditable(true); // Today's entry is always editable
+          
+          // If user is on free plan and already has a mood entry for today, disable the slider
+          const tier = await getCurrentSubscriptionTier();
+          if (tier === 'free') {
+            setFreeLimitReached(true);
+          }
         }
       } catch (error) {
         console.error('Error loading today\'s mood:', error);
@@ -227,6 +247,20 @@ export default function MoodSlider({
         .eq('date', today)
         .single();
       
+      // Check subscription tier
+      const tier = await getCurrentSubscriptionTier();
+      
+      // If user is on free plan and already has a mood entry for today, show an error
+      if (tier === 'free' && existingEntry) {
+        Alert.alert(
+          'Free Plan Limit Reached',
+          'Free users can only log their mood once per day. Upgrade to premium for unlimited mood logging.',
+          [{ text: 'OK' }]
+        );
+        setFreeLimitReached(true);
+        return;
+      }
+      
       let savedEntry;
       
       if (checkError && checkError.code === 'PGRST116') {
@@ -275,6 +309,11 @@ export default function MoodSlider({
         
         // Show details input after saving mood
         setShowDetailsInput(true);
+        
+        // If user is on free plan, set the free limit reached flag
+        if (tier === 'free') {
+          setFreeLimitReached(true);
+        }
         
         // Call the onMoodSaved callback to refresh parent component data
         if (onMoodSaved) {
@@ -334,6 +373,17 @@ export default function MoodSlider({
     }
   };
   
+  // Determine if slider should be disabled
+  const isSliderDisabled = disabled || !isEditable || isLoading || (subscriptionTier === 'free' && freeLimitReached);
+  
+  // Get message for free plan limit
+  const getFreePlanLimitMessage = () => {
+    if (subscriptionTier === 'free' && freeLimitReached) {
+      return "Free plan limited to 1 mood log per day. Upgrade for unlimited logs.";
+    }
+    return null;
+  };
+  
   return (
     <View style={styles.container}>
       {localMoodValue === null ? (
@@ -354,7 +404,7 @@ export default function MoodSlider({
         minimumTrackTintColor={currentMood?.color || theme.colors.border}
         maximumTrackTintColor={theme.colors.border}
         thumbTintColor={currentMood?.color || theme.colors.primary}
-        disabled={disabled || !isEditable || isLoading}
+        disabled={isSliderDisabled}
         // Add these props for smoother sliding
         tapToSeek={true}
         thumbStyle={styles.sliderThumb}
@@ -408,6 +458,11 @@ export default function MoodSlider({
               : "This mood is locked and can't be changed"}
           </Text>
         ) : null}
+        
+        {/* Free plan limit message */}
+        {getFreePlanLimitMessage() && (
+          <Text style={styles.freeLimitText}>{getFreePlanLimitMessage()}</Text>
+        )}
       </View>
       
       {/* Mood details input with mood rating passed */}
@@ -491,6 +546,12 @@ const styles = StyleSheet.create({
     color: theme.colors.primary,
     marginTop: 8,
     fontStyle: 'italic',
+  },
+  freeLimitText: {
+    fontSize: 12,
+    color: theme.colors.error,
+    marginTop: 8,
+    fontWeight: theme.fontWeights.medium,
   },
   emptyStateContainer: {
     alignItems: 'center',

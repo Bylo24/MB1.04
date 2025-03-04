@@ -86,7 +86,7 @@ export default function SubscriptionComparisonScreen({
       case 'limit':
         return "You've reached a limit of the free plan";
       case 'upgrade':
-        return "Upgrade to unlock premium features";
+        return "Compare our plans";
       case 'manage':
         return "Manage your subscription";
       default:
@@ -279,9 +279,9 @@ export default function SubscriptionComparisonScreen({
               <FeatureItem text="Advanced Mood Analytics – Detailed insights & reports" isPremium />
               <FeatureItem text="Smart Activity Recommendations – AI-driven suggestions" isPremium />
               <FeatureItem text="Customizable Mood Tracking – Add notes, tags, details" isPremium />
-              <FeatureItem text="Guided Exercises & Meditations – Tailored content" isPremium />
-              <FeatureItem text="Unlock More Streak Rewards – Badges, recovery options" isPremium />
-              <FeatureItem text="AI Mood Predictions – Future mood trend insights" isPremium />
+              <FeatureItem text="Guided Exercises & Meditations – Exclusive content tailored to user moods" isPremium />
+              <FeatureItem text="Unlock More Streak Rewards – Special badges, streak recovery options" isPremium />
+              <FeatureItem text="AI Mood Predictions – Get insights into future mood trends based on past data" isPremium />
               <FeatureItem text="Personalized Themes – More color schemes" isPremium />
               <FeatureItem text="Journaling Feature – Add diary entries" isPremium />
               <FeatureItem text="No Ads – Completely ad-free experience" isPremium />

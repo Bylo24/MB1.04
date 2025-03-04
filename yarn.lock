@@ -1321,17 +1321,17 @@
   resolved "https://registry.npmjs.org/@pkgjs/parseargs/-/parseargs-0.11.0.tgz"
   integrity sha512-+1VkjdD0QBLPodGrJUeqarH8VAIvQODIbwh9XpP5Syisf7YoQgsJKPNFoqqLQlu+VQ/tVSshMR6loPMn8U+dPg==
 
-"@react-native-async-storage/async-storage@^1.21.0":
-  version "1.24.0"
-  resolved "https://registry.npmjs.org/@react-native-async-storage/async-storage/-/async-storage-1.24.0.tgz"
-  integrity sha512-W4/vbwUOYOjco0x3toB8QCr7EjIP6nE9G7o8PMguvvjYT5Awg09lyV4enACRx4s++PPulBiBSjL0KTFx2u0Z/g==
+"@react-native-async-storage/async-storage@1.23.1":
+  version "1.23.1"
+  resolved "https://registry.yarnpkg.com/@react-native-async-storage/async-storage/-/async-storage-1.23.1.tgz#cad3cd4fab7dacfe9838dce6ecb352f79150c883"
+  integrity sha512-Qd2kQ3yi6Y3+AcUlrHxSLlnBvpdCEMVGFlVBneVOjaFaPU61g1huc38g339ysXspwY1QZA2aNhrk/KlHGO+ewA==
   dependencies:
     merge-options "^3.0.4"
 
-"@react-native-community/slider@4.4.2":
-  version "4.4.2"
-  resolved "https://registry.npmjs.org/@react-native-community/slider/-/slider-4.4.2.tgz"
-  integrity sha512-D9bv+3Vd2gairAhnRPAghwccgEmoM7g562pm8i4qB3Esrms5mggF81G3UvCyc0w3jjtFHh8dpQkfEoKiP0NW/Q==
+"@react-native-community/slider@4.5.5":
+  version "4.5.5"
+  resolved "https://registry.yarnpkg.com/@react-native-community/slider/-/slider-4.5.5.tgz#d70fc5870477760033769bbd6625d57e7d7678b2"
+  integrity sha512-x2N415pg4ZxIltArOKczPwn7JEYh+1OxQ4+hTnafomnMsqs65HZuEWcX+Ch8c5r8V83DiunuQUf5hWGWlw8hQQ==
 
 "@react-native/assets-registry@0.76.7":
   version "0.76.7"
@@ -4820,15 +4820,15 @@ react-is@^18.0.0, react-is@^18.2.0:
   resolved "https://registry.npmjs.org/react-is/-/react-is-18.3.1.tgz"
   integrity sha512-/LLMVyas0ljjAtoYiPqYiL8VWXzUUdThrmU5+n20DZv+a+ClRoevUzw5JxU+Ieh5/c87ytoTBV9G1FiKfNJdmg==
 
-react-native-safe-area-context@^5.2.0:
-  version "5.2.0"
-  resolved "https://registry.npmjs.org/react-native-safe-area-context/-/react-native-safe-area-context-5.2.0.tgz"
-  integrity sha512-QpcGA6MRKe8Zbpf1hirCBudNQYGsMv0n/CTTROMOFcXbqRUoEXLCsYxUmYKi7JJb3ziL2DbyzWXyH2/gw4Tkfw==
+react-native-safe-area-context@4.12.0:
+  version "4.12.0"
+  resolved "https://registry.yarnpkg.com/react-native-safe-area-context/-/react-native-safe-area-context-4.12.0.tgz#17868522a55bbc6757418c94a1b4abdda6b045d9"
+  integrity sha512-ukk5PxcF4p3yu6qMZcmeiZgowhb5AsKRnil54YFUUAXVIS7PJcMHGGC+q44fCiBg44/1AJk5njGMez1m9H0BVQ==
 
-react-native-screens@^4.9.1:
-  version "4.9.1"
-  resolved "https://registry.yarnpkg.com/react-native-screens/-/react-native-screens-4.9.1.tgz#fc4e9fb6efd8351593ac026db02bfefc28434624"
-  integrity sha512-3pIOu1YXTDClQfkgk2t7rIr7unrV6bviaXRJsOq1APNHLeCPrJ6m5Gy3pW5Ty+XBm9jRAbMqhpjiXZIjesOR6A==
+react-native-screens@~4.4.0:
+  version "4.4.0"
+  resolved "https://registry.yarnpkg.com/react-native-screens/-/react-native-screens-4.4.0.tgz#3fcbcdf1bbb1be2736b10d43edc3d4e69c37b5aa"
+  integrity sha512-c7zc7Zwjty6/pGyuuvh9gK3YBYqHPOxrhXfG1lF4gHlojQSmIx2piNbNaV+Uykj+RDTmFXK0e/hA+fucw/Qozg==
   dependencies:
     react-freeze "^1.0.0"
     warn-once "^0.1.0"

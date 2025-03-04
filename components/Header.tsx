@@ -1,5 +1,5 @@
 import React from 'react';
-import { StyleSheet, View, Text, TouchableOpacity } from 'react-native';
+import { StyleSheet, View, Text, TouchableOpacity, Image } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { theme } from '../theme/theme';
 
@@ -15,7 +15,10 @@ export default function Header({ title, onProfilePress }: HeaderProps) {
         <Text style={styles.title}>{title}</Text>
       ) : (
         <View style={styles.logoContainer}>
-          <Text style={styles.logoText}>Mood Buddy</Text>
+          <Image 
+            source={require('../assets/icon.png')} 
+            style={styles.logo} 
+          />
         </View>
       )}
       
@@ -47,6 +50,11 @@ const styles = StyleSheet.create({
   logoContainer: {
     flexDirection: 'row',
     alignItems: 'center',
+  },
+  logo: {
+    width: 40,
+    height: 40,
+    resizeMode: 'contain',
   },
   logoText: {
     fontSize: 22,

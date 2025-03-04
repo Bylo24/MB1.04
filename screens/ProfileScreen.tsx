@@ -26,7 +26,6 @@ export default function ProfileScreen({ onClose, onLogout }: ProfileScreenProps)
   const [languageModalVisible, setLanguageModalVisible] = useState(false);
   const [currentLanguage, setCurrentLanguage] = useState('English');
   const [subscriptionTier, setSubscriptionTier] = useState<SubscriptionTier>('free');
-  const [isDarkMode, setIsDarkMode] = useState(false);
   const [notificationsEnabled, setNotificationsEnabled] = useState(true);
   const [premiumModalVisible, setPremiumModalVisible] = useState(false);
   const [isUpdatingSubscription, setIsUpdatingSubscription] = useState(false);
@@ -61,10 +60,6 @@ export default function ProfileScreen({ onClose, onLogout }: ProfileScreenProps)
             setCurrentLanguage(langObj.name);
           }
         }
-        
-        // Load theme preference
-        const darkMode = await AsyncStorage.getItem('dark_mode');
-        setIsDarkMode(darkMode === 'true');
         
         // Load notification preference
         const notifications = await AsyncStorage.getItem('notifications_enabled');
@@ -243,13 +238,6 @@ export default function ProfileScreen({ onClose, onLogout }: ProfileScreenProps)
     } finally {
       setIsSavingProfile(false);
     }
-  };
-  
-  // Handle theme toggle
-  const handleThemeToggle = async (value: boolean) => {
-    setIsDarkMode(value);
-    await AsyncStorage.setItem('dark_mode', value.toString());
-    // In a real app, you would apply the theme change here
   };
   
   // Handle notifications toggle
@@ -466,30 +454,6 @@ export default function ProfileScreen({ onClose, onLogout }: ProfileScreenProps)
             <Ionicons name="chevron-forward" size={20} color={theme.colors.subtext} />
           </TouchableOpacity>
           
-          <TouchableOpacity style={styles.menuItem}>
-            <Ionicons name="lock-closed-outline" size={24} color={theme.colors.text} />
-            <Text style={styles.menuItemText}>Privacy</Text>
-            <Ionicons name="chevron-forward" size={20} color={theme.colors.subtext} />
-          </TouchableOpacity>
-        </View>
-        
-        {/* Appearance Section */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Appearance</Text>
-          
-          <View style={styles.settingItem}>
-            <View style={styles.settingTextContainer}>
-              <Ionicons name="moon-outline" size={24} color={theme.colors.text} />
-              <Text style={styles.settingText}>Dark Mode</Text>
-            </View>
-            <Switch
-              value={isDarkMode}
-              onValueChange={handleThemeToggle}
-              trackColor={{ false: '#767577', true: theme.colors.primary + '80' }}
-              thumbColor={isDarkMode ? theme.colors.primary : '#f4f3f4'}
-            />
-          </View>
-          
           <TouchableOpacity 
             style={styles.menuItem}
             onPress={() => setLanguageModalVisible(true)}
@@ -500,6 +464,12 @@ export default function ProfileScreen({ onClose, onLogout }: ProfileScreenProps)
               <Text style={styles.menuItemValue}>{currentLanguage}</Text>
               <Ionicons name="chevron-forward" size={20} color={theme.colors.subtext} />
             </View>
+          </TouchableOpacity>
+          
+          <TouchableOpacity style={styles.menuItem}>
+            <Ionicons name="lock-closed-outline" size={24} color={theme.colors.text} />
+            <Text style={styles.menuItemText}>Privacy</Text>
+            <Ionicons name="chevron-forward" size={20} color={theme.colors.subtext} />
           </TouchableOpacity>
         </View>
         

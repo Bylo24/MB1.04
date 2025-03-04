@@ -12,7 +12,6 @@ interface SettingsScreenProps {
 export default function SettingsScreen({ onClose }: SettingsScreenProps) {
   const [isLoading, setIsLoading] = useState(true);
   const [subscriptionTier, setSubscriptionTier] = useState<SubscriptionTier>('free');
-  const [isDarkMode, setIsDarkMode] = useState(false);
   const [notificationsEnabled, setNotificationsEnabled] = useState(true);
   
   useEffect(() => {
@@ -22,10 +21,6 @@ export default function SettingsScreen({ onClose }: SettingsScreenProps) {
         // Load subscription tier
         const tier = await getCurrentSubscriptionTier();
         setSubscriptionTier(tier);
-        
-        // Load theme preference
-        const darkMode = await AsyncStorage.getItem('dark_mode');
-        setIsDarkMode(darkMode === 'true');
         
         // Load notification preference
         const notifications = await AsyncStorage.getItem('notifications_enabled');
@@ -39,12 +34,6 @@ export default function SettingsScreen({ onClose }: SettingsScreenProps) {
     
     loadSettings();
   }, []);
-  
-  const handleThemeToggle = async (value: boolean) => {
-    setIsDarkMode(value);
-    await AsyncStorage.setItem('dark_mode', value.toString());
-    // In a real app, you would apply the theme change here
-  };
   
   const handleNotificationsToggle = async (value: boolean) => {
     setNotificationsEnabled(value);
@@ -143,23 +132,6 @@ export default function SettingsScreen({ onClose }: SettingsScreenProps) {
                 {subscriptionTier === 'premium' ? 'Cancel Subscription' : 'Upgrade to Premium'}
               </Text>
             </TouchableOpacity>
-          </View>
-        </View>
-        
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Appearance</Text>
-          
-          <View style={styles.settingItem}>
-            <View style={styles.settingTextContainer}>
-              <Ionicons name="moon-outline" size={24} color={theme.colors.text} />
-              <Text style={styles.settingText}>Dark Mode</Text>
-            </View>
-            <Switch
-              value={isDarkMode}
-              onValueChange={handleThemeToggle}
-              trackColor={{ false: '#767577', true: theme.colors.primary + '80' }}
-              thumbColor={isDarkMode ? theme.colors.primary : '#f4f3f4'}
-            />
           </View>
         </View>
         
