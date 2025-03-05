@@ -66,25 +66,17 @@ export default function ActivityCard({ activity, onPress, isPremiumUser = false 
           </View>
         </View>
         
-        {/* Progress indicator */}
-        <View style={styles.progressContainer}>
-          <View style={styles.progressBar}>
-            <View style={[styles.progressFill, { width: '30%' }]} />
+        {/* Premium badge for premium activities */}
+        {activity.isPremium && !isPremiumUser && (
+          <View style={styles.premiumBadgeContainer}>
+            <PremiumFeatureBadge
+              featureName="Premium Activity"
+              featureDescription="This activity is only available to premium users. Upgrade to access this and many more premium activities."
+              onUpgrade={onPress || (() => {})}
+              small
+            />
           </View>
-          <View style={styles.progressTextContainer}>
-            <Text style={styles.progressText}>Complete 3 more for a reward!</Text>
-            {activity.isPremium && !isPremiumUser && (
-              <View style={styles.premiumBadgeContainer}>
-                <PremiumFeatureBadge
-                  featureName="Premium Activity"
-                  featureDescription="This activity is only available to premium users. Upgrade to access this and many more premium activities."
-                  onUpgrade={onPress || (() => {})}
-                  small
-                />
-              </View>
-            )}
-          </View>
-        </View>
+        )}
       </View>
     </Pressable>
   );
@@ -212,31 +204,7 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: theme.fontWeights.semibold,
   },
-  progressContainer: {
-    marginTop: 4,
-  },
-  progressBar: {
-    height: 4, // Increased height
-    backgroundColor: theme.colors.border,
-    borderRadius: 999,
-    overflow: 'hidden',
-    marginBottom: 4,
-  },
-  progressFill: {
-    height: '100%',
-    backgroundColor: theme.colors.accent,
-  },
-  progressText: {
-    fontSize: 10,
-    color: theme.colors.subtext,
-    fontStyle: 'italic',
-  },
-  progressTextContainer: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
   premiumBadgeContainer: {
-    marginLeft: 'auto',
+    marginTop: 4,
   }
 });

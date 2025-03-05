@@ -3,12 +3,16 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { createClient } from '@supabase/supabase-js';
 
 // Use the correct URL and API key from environment variables
-const supabaseUrl = 'https://yzfnrdcuafamsjkppmka.supabase.co';
-const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inl6Zm5yZGN1YWZhbXNqa3BwbWthIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDA2MjAyMTUsImV4cCI6MjA1NjE5NjIxNX0.1SSzASgQcrQAGFa4RxraBdROcwIbRknmBmU6Und3iOM';
+const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL;
+const supabaseAnonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY;
 
 console.log('Initializing Supabase client with:');
 console.log('URL:', supabaseUrl);
 console.log('API Key:', supabaseAnonKey ? 'Set' : 'Not set');
+
+if (!supabaseUrl || !supabaseAnonKey) {
+  console.error('Missing Supabase environment variables!');
+}
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   auth: {
@@ -32,4 +36,9 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
       });
     },
   },
+});
+
+// Test the connection
+supabase.auth.onAuthStateChange((event, session) => {
+  console.log('Supabase auth state changed:', event);
 });

@@ -11,14 +11,16 @@ import {
   ScrollView,
   Alert,
   Keyboard,
-  Image
+  Image,
+  InputAccessoryView
 } from 'react-native';
 import { theme } from '../theme/theme';
 import { signInWithEmail, signUpWithEmail, resetPassword, resendConfirmationEmail } from '../services/authService';
 import { Ionicons } from '@expo/vector-icons';
+import { supabase } from '../utils/supabaseClient';
 
 interface LoginScreenProps {
-  onLogin: () => void;
+  onLogin: (isSignUp: boolean) => void;
 }
 
 export default function LoginScreen({ onLogin }: LoginScreenProps) {
@@ -30,6 +32,39 @@ export default function LoginScreen({ onLogin }: LoginScreenProps) {
   const [resetMode, setResetMode] = useState(false);
   const [confirmMode, setConfirmMode] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  
+  // Function to create a test user if it doesn't exist (runs silently in the background)
+  const createTestUserIfNeeded = async () => {
+    try {
+      console.log('Checking if test user exists...');
+      
+      // Try to sign up with the test credentials
+      const { data, error } = await supabase.auth.signUp({
+        email: 'apples123@gmail.com',
+        password: 'apples123',
+        options: {
+          emailRedirectTo: undefined
+        }
+      });
+      
+      if (error) {
+        if (error.message.includes('User already registered')) {
+          console.log('Test user already exists');
+        } else {
+          console.error('Error creating test user:', error.message);
+        }
+      } else {
+        console.log('Test user created successfully');
+      }
+    } catch (error) {
+      console.error('Error in createTestUserIfNeeded:', error);
+    }
+  };
+  
+  // Create test user silently on component mount
+  useEffect(() => {
+    createTestUserIfNeeded();
+  }, []);
   
   // Clear error message when form changes
   useEffect(() => {
@@ -82,7 +117,7 @@ export default function LoginScreen({ onLogin }: LoginScreenProps) {
         // If we have a session, login was successful
         if (result.session) {
           console.log('Sign up successful with session, proceeding to app');
-          onLogin();
+          onLogin(true); // Pass isSignUp=true to onLogin
         } else if (result.user) {
           // If user was created but email confirmation is required
           setConfirmMode(true);
@@ -96,9 +131,39 @@ export default function LoginScreen({ onLogin }: LoginScreenProps) {
         }
       } else {
         console.log('Starting sign in process...');
-        await signInWithEmail(email, password);
-        console.log('Sign in successful, proceeding to app');
-        onLogin();
+        
+        // Special case for test user
+        if (email === 'apples123@gmail.com' && password === 'apples123') {
+          console.log('Using test user credentials - direct login');
+          
+          // Direct login for test user
+          const { data, error } = await supabase.auth.signInWithPassword({
+            email,
+            password,
+          });
+          
+          if (error) {
+            console.error('Test user login error:', error.message);
+            setErrorMessage(error.message || 'Authentication failed. Please try again.');
+          } else if (data.session) {
+            console.log('Test user login successful, proceeding to app');
+            // Call onLogin directly
+            onLogin(false);
+          } else {
+            setErrorMessage('Login failed. No session returned.');
+          }
+        } else {
+          // Normal login flow for other users
+          const result = await signInWithEmail(email, password);
+          console.log('Sign in result:', result);
+          
+          if (result.session) {
+            console.log('Sign in successful, proceeding to app');
+            onLogin(false); // Pass isSignUp=false to onLogin
+          } else {
+            setErrorMessage('Login failed. Please try again.');
+          }
+        }
       }
     } catch (error: any) {
       console.error('Auth error:', error);
@@ -217,14 +282,11 @@ export default function LoginScreen({ onLogin }: LoginScreenProps) {
   };
   
   return (
-    <KeyboardAvoidingView 
-      style={styles.container}
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      keyboardVerticalOffset={Platform.OS === 'ios' ? 64 : 0}
-    >
+    <View style={styles.container}>
       <ScrollView 
         contentContainerStyle={styles.scrollContent}
         keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="on-drag"
       >
         <View style={styles.logoContainer}>
           <Image 
@@ -264,6 +326,7 @@ export default function LoginScreen({ onLogin }: LoginScreenProps) {
               keyboardType="email-address"
               autoComplete="email"
               textContentType="emailAddress"
+              inputAccessoryViewID={null}
             />
           </View>
           
@@ -279,6 +342,7 @@ export default function LoginScreen({ onLogin }: LoginScreenProps) {
                 secureTextEntry={!showPassword}
                 autoComplete={isSignUp ? "new-password" : "password"}
                 textContentType={isSignUp ? "newPassword" : "password"}
+                inputAccessoryViewID={null}
               />
               <TouchableOpacity 
                 style={styles.passwordToggle}
@@ -387,7 +451,7 @@ export default function LoginScreen({ onLogin }: LoginScreenProps) {
           )}
         </View>
       </ScrollView>
-    </KeyboardAvoidingView>
+    </View>
   );
 }
 
@@ -400,6 +464,7 @@ const styles = StyleSheet.create({
     flexGrow: 1,
     justifyContent: 'center',
     padding: 20,
+    paddingBottom: Platform.OS === 'ios' ? 100 : 20, // Add extra padding at the bottom for iOS
   },
   logoContainer: {
     alignItems: 'center',

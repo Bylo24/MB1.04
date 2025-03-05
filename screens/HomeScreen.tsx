@@ -10,7 +10,7 @@ import Header from '../components/Header';
 import ProfileModal from '../components/ProfileModal';
 import PremiumFeatureBadge from '../components/PremiumFeatureBadge';
 import { MoodRating, Activity } from '../types';
-import { getTodayMoodEntry, getRecentMoodEntries, getMoodStreak, getWeeklyAverageMood, getCurrentWeekMoodEntries } from '../services/moodService';
+import { getTodayMoodEntry, getRecentMoodEntries, getMoodStreak, getWeeklyAverageMood, getCurrentWeekMoodEntries, getTodayDetailedMoodEntries } from '../services/moodService';
 import { getCurrentUser, isAuthenticated } from '../services/authService';
 import { getCurrentSubscriptionTier } from '../services/subscriptionService';
 import { recommendedActivities } from '../data/mockData';
@@ -39,6 +39,10 @@ export default function HomeScreen({ onLogout, navigation }: HomeScreenProps) {
   const [activities, setActivities] = useState<Activity[]>(recommendedActivities.slice(0, 3));
   const [isLoadingActivities, setIsLoadingActivities] = useState(false);
   const [isPremium, setIsPremium] = useState(false);
+  const [todayMoodEntries, setTodayMoodEntries] = useState<any[]>([]);
+  
+  // State for mood entries expansion
+  const [showAllMoodEntries, setShowAllMoodEntries] = useState(false);
   
   // State for mood trend graph refresh
   const [trendGraphKey, setTrendGraphKey] = useState(0);
@@ -55,106 +59,129 @@ export default function HomeScreen({ onLogout, navigation }: HomeScreenProps) {
       console.log('Refreshing mood data...');
       
       // Check if user is authenticated
-      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
-      if (sessionError || !session) {
-        console.error('Session error or no session:', sessionError);
-        return;
-      }
-      
-      // Get today's date in YYYY-MM-DD format
-      const today = new Date().toISOString().split('T')[0];
-      
-      // Query mood entry for today
-      const { data: todayEntry, error: todayError } = await supabase
-        .from('mood_entries')
-        .select('*')
-        .eq('user_id', session.user.id)
-        .eq('date', today)
-        .single();
-      
-      if (todayError) {
-        if (todayError.code !== 'PGRST116') {
-          console.error('Error fetching today\'s mood entry:', todayError);
+      try {
+        const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+        if (sessionError) {
+          console.error('Error getting session:', sessionError);
+          return;
+        }
+        
+        if (!session) {
+          console.log('No active session found, skipping mood data refresh');
+          return;
+        }
+        
+        // Check subscription status
+        const tier = await getCurrentSubscriptionTier();
+        setIsPremium(tier === 'premium');
+        
+        // Get today's mood entry (summary)
+        const todayEntry = await getTodayMoodEntry();
+        
+        if (todayEntry) {
+          console.log('Today\'s mood entry found:', todayEntry);
+          setTodayMood(todayEntry.rating);
+          setSelectedMood(todayEntry.rating);
+          
+          // Store the last mood in AsyncStorage for persistence
+          await AsyncStorage.setItem('last_mood_rating', todayEntry.rating.toString());
         } else {
           console.log('No mood entry found for today');
+          
+          // Try to get the last saved mood from AsyncStorage
+          const lastMoodStr = await AsyncStorage.getItem('last_mood_rating');
+          if (lastMoodStr) {
+            const lastMood = parseInt(lastMoodStr) as MoodRating;
+            console.log('Found last saved mood:', lastMood);
+            // Set as the selected mood but not as today's mood
+            setSelectedMood(lastMood);
+          } else {
+            setSelectedMood(null);
+          }
+          
           setTodayMood(null);
-          setSelectedMood(null);
         }
-      } else if (todayEntry) {
-        console.log('Today\'s mood entry found:', todayEntry);
-        setTodayMood(todayEntry.rating);
-        setSelectedMood(todayEntry.rating);
-      }
-      
-      // Get all mood entries for streak calculation
-      const { data: allEntries, error: entriesError } = await supabase
-        .from('mood_entries')
-        .select('*')
-        .eq('user_id', session.user.id)
-        .order('date', { ascending: false });
-      
-      if (entriesError) {
-        console.error('Error fetching all mood entries:', entriesError);
-      } else {
-        // Calculate streak
-        let currentStreak = 0;
-        if (allEntries && allEntries.length > 0) {
-          // Simple streak calculation
-          currentStreak = 1; // Start with 1 for the most recent entry
-          
-          // Create a map of dates with entries
-          const dateMap = new Map();
-          allEntries.forEach(entry => {
-            dateMap.set(entry.date, true);
-          });
-          
-          // Get the most recent entry date
-          const mostRecentDate = new Date(allEntries[0].date);
-          
-          // Check previous days
-          for (let i = 1; i <= 365; i++) { // Check up to a year back
-            const prevDate = new Date(mostRecentDate);
-            prevDate.setDate(prevDate.getDate() - i);
-            const dateStr = prevDate.toISOString().split('T')[0];
+        
+        // For premium users, get detailed entries for today
+        if (tier === 'premium') {
+          const detailedEntries = await getTodayDetailedMoodEntries();
+          setTodayMoodEntries(detailedEntries);
+          console.log(`Found ${detailedEntries.length} detailed mood entries for today`);
+        }
+        
+        // Get all mood entries for streak calculation
+        const { data: allEntries, error: entriesError } = await supabase
+          .from('mood_entries')
+          .select('*')
+          .eq('user_id', session.user.id)
+          .order('date', { ascending: false });
+        
+        if (entriesError) {
+          console.error('Error fetching all mood entries:', entriesError);
+        } else {
+          // Calculate streak
+          let currentStreak = 0;
+          if (allEntries && allEntries.length > 0) {
+            // Simple streak calculation
+            currentStreak = 1; // Start with 1 for the most recent entry
             
-            if (dateMap.has(dateStr)) {
-              currentStreak++;
-            } else {
-              break;
+            // Create a map of dates with entries
+            const dateMap = new Map();
+            allEntries.forEach(entry => {
+              dateMap.set(entry.date, true);
+            });
+            
+            // Get the most recent entry date
+            const mostRecentDate = new Date(allEntries[0].date);
+            
+            // Check previous days
+            for (let i = 1; i <= 365; i++) { // Check up to a year back
+              const prevDate = new Date(mostRecentDate);
+              prevDate.setDate(prevDate.getDate() - i);
+              const dateStr = prevDate.toISOString().split('T')[0];
+              
+              if (dateMap.has(dateStr)) {
+                currentStreak++;
+              } else {
+                break;
+              }
             }
+          }
+          
+          console.log('Current streak:', currentStreak);
+          setStreak(currentStreak);
+          
+          // Get weekly entries (last 7 days)
+          const sevenDaysAgo = new Date();
+          sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+          const startDate = sevenDaysAgo.toISOString().split('T')[0];
+          const today = new Date().toISOString().split('T')[0];
+          
+          const weekEntries = allEntries.filter(entry => 
+            entry.date >= startDate && entry.date <= today
+          );
+          
+          console.log('Weekly entries:', weekEntries);
+          setWeeklyMoodEntries(weekEntries);
+          
+          // Calculate weekly average
+          if (weekEntries.length > 0) {
+            const sum = weekEntries.reduce((total, entry) => total + entry.rating, 0);
+            const avg = sum / weekEntries.length;
+            console.log('Weekly average:', avg);
+            setWeeklyAverage(avg);
+          } else {
+            setWeeklyAverage(null);
           }
         }
         
-        console.log('Current streak:', currentStreak);
-        setStreak(currentStreak);
+        // Force mood trend graph to refresh
+        setTrendGraphKey(prev => prev + 1);
         
-        // Get weekly entries (last 7 days)
-        const sevenDaysAgo = new Date();
-        sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
-        const startDate = sevenDaysAgo.toISOString().split('T')[0];
-        
-        const weekEntries = allEntries.filter(entry => 
-          entry.date >= startDate && entry.date <= today
-        );
-        
-        console.log('Weekly entries:', weekEntries);
-        setWeeklyMoodEntries(weekEntries);
-        
-        // Calculate weekly average
-        if (weekEntries.length > 0) {
-          const sum = weekEntries.reduce((total, entry) => total + entry.rating, 0);
-          const avg = sum / weekEntries.length;
-          console.log('Weekly average:', avg);
-          setWeeklyAverage(avg);
-        } else {
-          setWeeklyAverage(null);
-        }
+        console.log('Mood data refresh complete');
+      } catch (sessionError) {
+        console.error('Error checking session:', sessionError);
       }
-      
-      // Force mood trend graph to refresh
-      setTrendGraphKey(prev => prev + 1);
-      
-      console.log('Mood data refresh complete');
     } catch (error) {
       console.error('Error refreshing mood data:', error);
     }
@@ -179,14 +206,14 @@ export default function HomeScreen({ onLogout, navigation }: HomeScreenProps) {
         
         const user = await getCurrentUser();
         if (user) {
-          // Use stored name if available, otherwise extract from email
+          // Use stored name if available, otherwise use a generic name
           if (storedName) {
             setUserName(storedName);
           } else {
-            const name = user.email ? user.email.split('@')[0] : 'Friend';
-            setUserName(name);
-            // Store the name for future use
-            await AsyncStorage.setItem('user_display_name', name);
+            // Use a generic name instead of email
+            setUserName('Friend');
+            // Store the generic name for future use
+            await AsyncStorage.setItem('user_display_name', 'Friend');
           }
           
           // Check subscription status
@@ -229,12 +256,14 @@ export default function HomeScreen({ onLogout, navigation }: HomeScreenProps) {
   
   // Handle mood change
   const handleMoodChange = (mood: MoodRating | null) => {
-    console.log('Mood changed to:', mood);
-    setSelectedMood(mood);
-    
-    // Immediately update today's mood in the UI
+    console.log('Mood changed in HomeScreen:', mood);
     if (mood !== null) {
+      setSelectedMood(mood);
       setTodayMood(mood);
+      
+      // Store the last mood in AsyncStorage for persistence
+      AsyncStorage.setItem('last_mood_rating', mood.toString())
+        .catch(error => console.error('Error saving last mood to AsyncStorage:', error));
     }
   };
   
@@ -301,9 +330,17 @@ export default function HomeScreen({ onLogout, navigation }: HomeScreenProps) {
   // Handle premium feature button press
   const handlePremiumFeaturePress = (featureName: string) => {
     if (isPremium) {
-      // If user is premium, we would navigate to the feature
-      // For now, just log the action
-      console.log(`Premium feature pressed: ${featureName}`);
+      // If user is premium, navigate to the feature
+      if (featureName === 'GuidedExercises') {
+        navigation.navigate('GuidedExercises', { isPremium });
+      } else if (featureName === 'StreakRewards') {
+        navigation.navigate('StreakRewards', { isPremium });
+      } else if (featureName === 'MoodPredictions') {
+        navigation.navigate('MoodPredictions', { isPremium });
+      } else {
+        // For other features, just log the action for now
+        console.log(`Premium feature pressed: ${featureName}`);
+      }
     } else {
       // If user is not premium, navigate to subscription comparison screen
       navigation.navigate('SubscriptionComparison', { source: 'upgrade' });
@@ -313,6 +350,11 @@ export default function HomeScreen({ onLogout, navigation }: HomeScreenProps) {
   // Navigate to subscription screen (direct method)
   const navigateToSubscription = () => {
     navigation.navigate('SubscriptionComparison', { source: 'upgrade' });
+  };
+  
+  // Toggle showing all mood entries
+  const toggleMoodEntries = () => {
+    setShowAllMoodEntries(!showAllMoodEntries);
   };
   
   function getMoodEmoji(rating: number | null): string {
@@ -336,6 +378,16 @@ export default function HomeScreen({ onLogout, navigation }: HomeScreenProps) {
       case 4: return theme.colors.mood4;
       case 5: return theme.colors.mood5;
       default: return theme.colors.text;
+    }
+  }
+  
+  // Format time for display
+  function formatTime(timeString: string): string {
+    try {
+      const time = new Date(`2000-01-01T${timeString}`);
+      return time.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+    } catch (e) {
+      return timeString;
     }
   }
   
@@ -388,10 +440,10 @@ export default function HomeScreen({ onLogout, navigation }: HomeScreenProps) {
           <TouchableOpacity 
             style={styles.premiumFeatureButton}
             onPress={() => {
-              if (!isPremium) {
-                navigateToSubscription();
+              if (isPremium) {
+                navigation.navigate('GuidedExercises', { isPremium });
               } else {
-                handlePremiumFeaturePress('GuidedExercises');
+                navigateToSubscription();
               }
             }}
           >
@@ -421,10 +473,10 @@ export default function HomeScreen({ onLogout, navigation }: HomeScreenProps) {
           <TouchableOpacity 
             style={styles.premiumFeatureButton}
             onPress={() => {
-              if (!isPremium) {
-                navigateToSubscription();
+              if (isPremium) {
+                navigation.navigate('StreakRewards', { isPremium });
               } else {
-                handlePremiumFeaturePress('StreakRewards');
+                navigateToSubscription();
               }
             }}
           >
@@ -454,10 +506,10 @@ export default function HomeScreen({ onLogout, navigation }: HomeScreenProps) {
           <TouchableOpacity 
             style={styles.premiumFeatureButton}
             onPress={() => {
-              if (!isPremium) {
-                navigateToSubscription();
+              if (isPremium) {
+                navigation.navigate('MoodPredictions', { isPremium });
               } else {
-                handlePremiumFeaturePress('MoodPredictions');
+                navigateToSubscription();
               }
             }}
           >
@@ -516,10 +568,10 @@ export default function HomeScreen({ onLogout, navigation }: HomeScreenProps) {
               <TouchableOpacity 
                 style={styles.summaryItem}
                 onPress={() => {
-                  if (!isPremium) {
-                    navigateToSubscription();
+                  if (isPremium) {
+                    navigation.navigate('StreakRewards', { isPremium });
                   } else {
-                    handlePremiumFeaturePress('StreakRewards');
+                    navigateToSubscription();
                   }
                 }}
               >
@@ -529,6 +581,63 @@ export default function HomeScreen({ onLogout, navigation }: HomeScreenProps) {
                 </View>
               </TouchableOpacity>
             </View>
+            
+            {/* For premium users, show detailed mood entries for today */}
+            {isPremium && todayMoodEntries.length > 0 && (
+              <View style={styles.detailedMoodContainer}>
+                <View style={styles.detailedMoodHeader}>
+                  <Text style={styles.detailedMoodTitle}>Today's Mood Entries</Text>
+                  {todayMoodEntries.length > 4 && (
+                    <TouchableOpacity 
+                      style={styles.viewMoreButton}
+                      onPress={toggleMoodEntries}
+                    >
+                      <Text style={styles.viewMoreButtonText}>
+                        {showAllMoodEntries ? 'Collapse' : 'View All'}
+                      </Text>
+                      <Ionicons 
+                        name={showAllMoodEntries ? 'chevron-up' : 'chevron-down'} 
+                        size={16} 
+                        color={theme.colors.primary} 
+                      />
+                    </TouchableOpacity>
+                  )}
+                </View>
+                
+                <View style={styles.detailedMoodList}>
+                  {/* Show either all entries or just the first 4 */}
+                  {(showAllMoodEntries ? todayMoodEntries : todayMoodEntries.slice(0, 4)).map((entry, index) => (
+                    <View key={entry.id} style={styles.detailedMoodItem}>
+                      <Text style={styles.detailedMoodTime}>{formatTime(entry.time)}</Text>
+                      <Text style={[
+                        styles.detailedMoodEmoji,
+                        { color: getMoodColor(entry.rating) }
+                      ]}>
+                        {getMoodEmoji(entry.rating)}
+                      </Text>
+                      {entry.note && (
+                        <Text style={styles.detailedMoodNote} numberOfLines={1} ellipsizeMode="tail">
+                          {entry.note}
+                        </Text>
+                      )}
+                    </View>
+                  ))}
+                  
+                  {/* Show indicator of hidden entries if not expanded */}
+                  {!showAllMoodEntries && todayMoodEntries.length > 4 && (
+                    <View style={styles.hiddenEntriesIndicator}>
+                      <Text style={styles.hiddenEntriesText}>
+                        +{todayMoodEntries.length - 4} more entries
+                      </Text>
+                    </View>
+                  )}
+                </View>
+                
+                <Text style={styles.detailedMoodAverage}>
+                  Daily Average: {getMoodEmoji(todayMood)} ({todayMoodEntries.length} entries)
+                </Text>
+              </View>
+            )}
             
             <View style={styles.trendContainer}>
               <Text style={styles.trendTitle}>Your Mood Trend</Text>
@@ -748,5 +857,82 @@ const styles = StyleSheet.create({
     marginTop: 16,
     fontSize: 16,
     color: theme.colors.subtext,
+  },
+  // Detailed mood entries styles
+  detailedMoodContainer: {
+    marginTop: 16,
+    borderTopWidth: 1,
+    borderTopColor: theme.colors.border,
+    paddingTop: 16,
+  },
+  detailedMoodHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  detailedMoodTitle: {
+    fontSize: 16,
+    fontWeight: theme.fontWeights.semibold,
+    color: theme.colors.text,
+  },
+  viewMoreButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 4,
+    paddingHorizontal: 8,
+    backgroundColor: theme.colors.primary + '15',
+    borderRadius: 12,
+  },
+  viewMoreButtonText: {
+    fontSize: 12,
+    fontWeight: theme.fontWeights.medium,
+    color: theme.colors.primary,
+    marginRight: 4,
+  },
+  detailedMoodList: {
+    marginBottom: 12,
+  },
+  detailedMoodItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 8,
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    backgroundColor: theme.colors.background,
+    borderRadius: 8,
+  },
+  detailedMoodTime: {
+    fontSize: 14,
+    color: theme.colors.subtext,
+    width: 70,
+  },
+  detailedMoodEmoji: {
+    fontSize: 20,
+    marginHorizontal: 12,
+  },
+  detailedMoodNote: {
+    flex: 1,
+    fontSize: 14,
+    color: theme.colors.text,
+  },
+  detailedMoodAverage: {
+    fontSize: 14,
+    fontWeight: theme.fontWeights.medium,
+    color: theme.colors.primary,
+    textAlign: 'center',
+    marginTop: 4,
+  },
+  hiddenEntriesIndicator: {
+    alignItems: 'center',
+    paddingVertical: 8,
+    backgroundColor: theme.colors.background + '80',
+    borderRadius: 8,
+    marginTop: 4,
+  },
+  hiddenEntriesText: {
+    fontSize: 12,
+    color: theme.colors.subtext,
+    fontStyle: 'italic',
   },
 });

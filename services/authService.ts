@@ -15,7 +15,13 @@ export const isAuthenticated = async (): Promise<boolean> => {
 // Get current user
 export const getCurrentUser = async () => {
   try {
-    const { data: { user } } = await supabase.auth.getUser();
+    const { data: { user }, error } = await supabase.auth.getUser();
+    
+    if (error) {
+      console.error('Error getting current user:', error.message);
+      return null;
+    }
+    
     console.log('Current user:', user ? `${user.id} (${user.email})` : 'No user');
     return user;
   } catch (error) {
@@ -52,6 +58,63 @@ const retryOperation = async (operation, maxRetries = 3, delay = 1000) => {
 export const signInWithEmail = async (email: string, password: string) => {
   console.log('Attempting to sign in with email:', email);
   
+  // Special case for test user
+  if (email === 'apples123@gmail.com' && password === 'apples123') {
+    console.log('Using test user credentials');
+    
+    // Try to create the test user first if it doesn't exist
+    try {
+      const { data: checkData, error: checkError } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
+      
+      if (checkError) {
+        console.log('Test user login failed, trying to create it first');
+        
+        // Try to create the test user
+        const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
+          email,
+          password,
+          options: {
+            emailRedirectTo: undefined
+          }
+        });
+        
+        if (signUpError) {
+          console.error('Error creating test user:', signUpError.message);
+          throw signUpError;
+        }
+        
+        // If user was created but needs confirmation, auto-confirm for test user
+        if (signUpData.user && !signUpData.session) {
+          console.log('Test user created but needs confirmation, trying to sign in again');
+          
+          // Try signing in again
+          const { data: retryData, error: retryError } = await supabase.auth.signInWithPassword({
+            email,
+            password,
+          });
+          
+          if (retryError) {
+            console.error('Test user sign in retry failed:', retryError.message);
+            throw retryError;
+          }
+          
+          return retryData;
+        }
+        
+        return signUpData;
+      }
+      
+      return checkData;
+    } catch (error) {
+      console.error('Test user handling error:', error);
+      throw error;
+    }
+  }
+  
+  // Normal sign in for non-test users
   return retryOperation(async () => {
     const { data, error } = await supabase.auth.signInWithPassword({
       email,
@@ -63,56 +126,19 @@ export const signInWithEmail = async (email: string, password: string) => {
       throw error;
     }
     
+    if (!data.session) {
+      console.error('Sign in failed: No session returned');
+      throw new Error('Authentication failed. Please try again.');
+    }
+    
     console.log('Sign in successful:', data.user?.id);
     return data;
   });
 };
 
-// Check if a user exists with the given email
-export const checkUserExists = async (email: string): Promise<boolean> => {
-  console.log('Checking if user exists with email:', email);
-  
-  try {
-    // Try to sign up with a random password to see if the user exists
-    const { error } = await supabase.auth.signUp({
-      email,
-      password: Math.random().toString(36).slice(-12), // Random password
-      options: {
-        emailRedirectTo: undefined
-      }
-    });
-    
-    // If we get "User already registered" error, the user exists
-    if (error && (
-      error.message.includes('User already registered') || 
-      error.message.includes('already exists') ||
-      error.message.includes('already taken')
-    )) {
-      console.log('User exists with email:', email);
-      return true;
-    }
-    
-    // If no error or different error, user doesn't exist
-    console.log('User does not exist with email:', email);
-    return false;
-  } catch (error) {
-    console.error('Error checking if user exists:', error);
-    return false;
-  }
-};
-
 // Sign up with email and password
 export const signUpWithEmail = async (email: string, password: string) => {
   console.log('Attempting to sign up with email:', email);
-  
-  // First check if user already exists
-  const userExists = await checkUserExists(email);
-  if (userExists) {
-    console.log('User already exists, throwing error');
-    const error = new Error('User already registered');
-    error.name = 'UserExistsError';
-    throw error;
-  }
   
   return retryOperation(async () => {
     // Create a new account
@@ -120,7 +146,7 @@ export const signUpWithEmail = async (email: string, password: string) => {
       email,
       password,
       options: {
-        // Set this to false to allow immediate sign-in without email confirmation
+        // Set this to undefined to use the default redirect URL
         emailRedirectTo: undefined
       }
     });

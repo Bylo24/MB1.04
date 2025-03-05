@@ -22,11 +22,12 @@ export async function getActivityRecommendations(
     if (hasApiKey) {
       // If we have an API key, try to use the Gemini API
       try {
-        // Create a prompt for Gemini API
-        const prompt = `Based on the following mood information, select the 3 most appropriate activities from the list below.
+        // Create a prompt for Gemini API that prioritizes mood details
+        const prompt = `Based on the following user input, select the 3 most appropriate activities from the list below.
         
-        User's mood rating: ${moodRating}/5 (1=Terrible, 2=Not Good, 3=Okay, 4=Good, 5=Great)
-        User's mood details: "${moodDetails}"
+        ${moodDetails ? `User's input: "${moodDetails}"` : `User's mood rating: ${moodRating}/5 (1=Terrible, 2=Not Good, 3=Okay, 4=Good, 5=Great)`}
+        
+        IMPORTANT: If the user mentions hunger, food, eating, or being hungry, prioritize activities related to food, eating, or nutrition.
         
         Available activities:
         ${availableActivities.map((activity, index) => 
@@ -114,6 +115,41 @@ function simulateActivityRecommendations(
   // Convert details to lowercase for easier matching
   const details = moodDetails.toLowerCase();
   
+  // Check for hunger-related keywords first
+  if (details.includes('hungry') || details.includes('hunger') || details.includes('food') || 
+      details.includes('eat') || details.includes('meal') || details.includes('snack')) {
+    console.log('User mentioned hunger. Prioritizing food-related activities.');
+    
+    // Find food-related activities
+    const foodRelatedActivities = availableActivities.filter(activity => {
+      const title = activity.title.toLowerCase();
+      const description = activity.description.toLowerCase();
+      const tags = activity.tags ? activity.tags.join(' ').toLowerCase() : '';
+      
+      return title.includes('eat') || title.includes('food') || title.includes('snack') || title.includes('cook') ||
+             description.includes('eat') || description.includes('food') || description.includes('snack') || 
+             description.includes('meal') || description.includes('cook') || description.includes('nutrition') ||
+             tags.includes('nutrition') || tags.includes('nourishment');
+    });
+    
+    if (foodRelatedActivities.length > 0) {
+      // If we found food-related activities, return up to 3 of them
+      const selectedActivities = foodRelatedActivities.slice(0, 3);
+      
+      // If we have fewer than 3, add some random activities to fill
+      if (selectedActivities.length < 3) {
+        const otherActivities = availableActivities
+          .filter(a => !selectedActivities.includes(a))
+          .sort(() => 0.5 - Math.random())
+          .slice(0, 3 - selectedActivities.length);
+        
+        return [...selectedActivities, ...otherActivities];
+      }
+      
+      return selectedActivities;
+    }
+  }
+  
   // Create a scoring system for activities based on mood and details
   const scoredActivities = availableActivities.map(activity => {
     let score = 0;
@@ -153,7 +189,8 @@ function simulateActivityRecommendations(
       'excited': ['creative', 'social', 'music'],
       'frustrated': ['workout', 'breathing', 'declutter'],
       'calm': ['meditation', 'tea', 'reading'],
-      'distracted': ['meditation', 'focus', 'breathing']
+      'distracted': ['meditation', 'focus', 'breathing'],
+      'hungry': ['snack', 'eating', 'food', 'nutrition', 'cook']
     };
     
     // Check if any keywords from the user's details match our mapping
@@ -187,6 +224,7 @@ function simulateActivityRecommendations(
       { words: ['sad', 'down', 'depressed'], activities: ['Call a Friend', 'Gratitude Journaling', 'Listen to Uplifting Music'], bonus: 3 },
       { words: ['angry', 'frustrated', 'irritated'], activities: ['Quick Workout', 'Deep Breathing', 'Nature Walk'], bonus: 3 },
       { words: ['bored', 'restless', 'uninterested'], activities: ['Creative Drawing', 'Dance Break', 'Quick Workout'], bonus: 3 },
+      { words: ['hungry', 'hunger', 'food', 'eat', 'meal', 'snack'], activities: ['Healthy Snack Break', 'Mindful Eating', 'Mindful Cooking', 'Mindful Eating Challenge'], bonus: 10 },
     ];
     
     for (const match of specificMatches) {

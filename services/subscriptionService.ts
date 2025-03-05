@@ -4,6 +4,10 @@ import { Alert } from 'react-native';
 
 // Cache key for subscription status
 const SUBSCRIPTION_CACHE_KEY = 'user_subscription_tier';
+// Cache key for last subscription check
+const SUBSCRIPTION_LAST_CHECK_KEY = 'user_subscription_last_check';
+// Maximum time between subscription checks (in milliseconds) - 1 hour
+const MAX_CACHE_TIME = 60 * 60 * 1000;
 
 // Subscription tiers
 export type SubscriptionTier = 'free' | 'premium';
@@ -11,10 +15,15 @@ export type SubscriptionTier = 'free' | 'premium';
 // Get the current user's subscription tier
 export async function getCurrentSubscriptionTier(): Promise<SubscriptionTier> {
   try {
-    // First check local cache for faster response
-    const cachedTier = await AsyncStorage.getItem(SUBSCRIPTION_CACHE_KEY);
-    if (cachedTier === 'premium') {
-      return 'premium';
+    // Check if we need to verify the subscription status with the server
+    const shouldCheckServer = await shouldVerifySubscription();
+    
+    // First check local cache for faster response if we don't need to verify
+    if (!shouldCheckServer) {
+      const cachedTier = await AsyncStorage.getItem(SUBSCRIPTION_CACHE_KEY);
+      if (cachedTier === 'premium') {
+        return 'premium';
+      }
     }
     
     // Check if user is authenticated
@@ -37,6 +46,8 @@ export async function getCurrentSubscriptionTier(): Promise<SubscriptionTier> {
     }
     
     if (!data) {
+      // Clear any cached premium status
+      await AsyncStorage.removeItem(SUBSCRIPTION_CACHE_KEY);
       return 'free';
     }
     
@@ -47,13 +58,39 @@ export async function getCurrentSubscriptionTier(): Promise<SubscriptionTier> {
     if (data.tier === 'premium' && (!expiresAt || expiresAt > now)) {
       // Cache the premium status
       await AsyncStorage.setItem(SUBSCRIPTION_CACHE_KEY, 'premium');
+      // Update the last check timestamp
+      await AsyncStorage.setItem(SUBSCRIPTION_LAST_CHECK_KEY, now.getTime().toString());
       return 'premium';
     }
     
+    // If we get here, the subscription is not active
+    // Clear any cached premium status
+    await AsyncStorage.removeItem(SUBSCRIPTION_CACHE_KEY);
+    // Update the last check timestamp
+    await AsyncStorage.setItem(SUBSCRIPTION_LAST_CHECK_KEY, now.getTime().toString());
     return 'free';
   } catch (error) {
     console.error('Error getting subscription tier:', error);
     return 'free';
+  }
+}
+
+// Check if we should verify the subscription with the server
+async function shouldVerifySubscription(): Promise<boolean> {
+  try {
+    const lastCheckStr = await AsyncStorage.getItem(SUBSCRIPTION_LAST_CHECK_KEY);
+    if (!lastCheckStr) {
+      return true; // No last check, should verify
+    }
+    
+    const lastCheck = parseInt(lastCheckStr, 10);
+    const now = new Date().getTime();
+    
+    // If it's been more than MAX_CACHE_TIME since the last check, verify again
+    return (now - lastCheck) > MAX_CACHE_TIME;
+  } catch (error) {
+    console.error('Error checking last subscription verification:', error);
+    return true; // On error, verify to be safe
   }
 }
 
@@ -125,6 +162,8 @@ export async function subscribeToPremium(): Promise<boolean> {
     
     // Cache the premium status
     await AsyncStorage.setItem(SUBSCRIPTION_CACHE_KEY, 'premium');
+    // Update the last check timestamp
+    await AsyncStorage.setItem(SUBSCRIPTION_LAST_CHECK_KEY, new Date().getTime().toString());
     
     // Show success message
     Alert.alert(
@@ -199,6 +238,8 @@ export async function cancelPremiumSubscription(): Promise<boolean> {
     
     // Clear the premium status from cache
     await AsyncStorage.removeItem(SUBSCRIPTION_CACHE_KEY);
+    // Update the last check timestamp
+    await AsyncStorage.setItem(SUBSCRIPTION_LAST_CHECK_KEY, new Date().getTime().toString());
     
     // Show success message
     Alert.alert(
@@ -296,4 +337,5 @@ export async function toggleSubscriptionForDemo(): Promise<SubscriptionTier> {
 // Clear subscription cache (useful for testing or logout)
 export async function clearSubscriptionCache(): Promise<void> {
   await AsyncStorage.removeItem(SUBSCRIPTION_CACHE_KEY);
+  await AsyncStorage.removeItem(SUBSCRIPTION_LAST_CHECK_KEY);
 }

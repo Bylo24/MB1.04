@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { StyleSheet, Text, View, Animated, Alert, ToastAndroid, Platform } from 'react-native';
 import Slider from '@react-native-community/slider';
 import { MoodRating } from '../types';
@@ -6,13 +6,13 @@ import { theme } from '../theme/theme';
 import { supabase } from '../utils/supabaseClient';
 import MoodDetailsInput from './MoodDetailsInput';
 import { getCurrentSubscriptionTier } from '../services/subscriptionService';
+import { getTodayMoodEntry, getTodayDetailedMoodEntries } from '../services/moodService';
 
 interface MoodSliderProps {
   value: MoodRating | null;
   onValueChange: (value: MoodRating | null) => void;
-  onMoodSaved?: () => void; // Callback for when mood is saved
+  onMoodSaved?: () => void;
   onMoodDetailsSubmitted?: (rating: MoodRating, details: string) => Promise<void>;
-  onGenerateRecommendations?: (rating: MoodRating) => Promise<void>; // New callback for generating recommendations without details
   disabled?: boolean;
 }
 
@@ -28,23 +28,25 @@ export default function MoodSlider({
   onValueChange,
   onMoodSaved,
   onMoodDetailsSubmitted,
-  onGenerateRecommendations,
   disabled = false
 }: MoodSliderProps) {
-  // Use refs for animation values to prevent re-renders
+  // Animation values
   const scaleAnim = useRef(new Animated.Value(1)).current;
   const opacityAnim = useRef(new Animated.Value(1)).current;
   
+  // Core state
   const [isLoading, setIsLoading] = useState(false);
   const [isSaved, setIsSaved] = useState(false);
   const [isEditable, setIsEditable] = useState(true);
-  const [hasUserMoved, setHasUserMoved] = useState(false);
-  const [localMoodValue, setLocalMoodValue] = useState<MoodRating | null>(value);
-  const [showDetailsInput, setShowDetailsInput] = useState(false);
-  const [subscriptionTier, setSubscriptionTier] = useState<'free' | 'premium'>('free');
   const [freeLimitReached, setFreeLimitReached] = useState(false);
-  const initialLoadRef = useRef(true);
-  const prevValueRef = useRef<MoodRating | null>(null);
+  const [subscriptionTier, setSubscriptionTier] = useState<'free' | 'premium'>('free');
+  const [todayEntriesCount, setTodayEntriesCount] = useState(0);
+  const [showDetailsInput, setShowDetailsInput] = useState(false);
+  
+  // IMPORTANT: These are the key state variables for fixing the issue
+  const [currentSliderValue, setCurrentSliderValue] = useState<MoodRating | null>(value);
+  const [displayedMood, setDisplayedMood] = useState<MoodRating | null>(value);
+  const [isUserDragging, setIsUserDragging] = useState(false);
   
   // Define mood options
   const moodOptions: MoodOption[] = [
@@ -55,29 +57,25 @@ export default function MoodSlider({
     { rating: 5, label: "Great", emoji: "😄", color: theme.colors.mood5 },
   ];
   
-  // Get current mood option based on value
-  const currentMood = localMoodValue ? moodOptions.find(option => option.rating === localMoodValue) : null;
+  // Get current mood option based on displayed mood
+  const currentMood = displayedMood !== null ? moodOptions.find(option => option.rating === displayedMood) : null;
   
   // Show success message
   const showSuccessMessage = (message: string) => {
     if (Platform.OS === 'android') {
       ToastAndroid.show(message, ToastAndroid.SHORT);
     } else {
-      // For iOS, we could use a custom toast component or Alert
       console.log(message);
       Alert.alert('Success', message, [{ text: 'OK' }], { cancelable: true });
     }
   };
   
-  // Smoother animation for emoji when mood changes
-  const animateEmoji = useCallback(() => {
-    // Reset animation values
+  // Animate emoji when mood changes
+  const animateEmoji = () => {
     scaleAnim.setValue(1);
     opacityAnim.setValue(1);
     
-    // Create a smoother animation sequence
     Animated.sequence([
-      // Fade out slightly while scaling up
       Animated.parallel([
         Animated.timing(scaleAnim, {
           toValue: 1.2,
@@ -90,7 +88,6 @@ export default function MoodSlider({
           useNativeDriver: true,
         }),
       ]),
-      // Fade back in while scaling down
       Animated.parallel([
         Animated.timing(scaleAnim, {
           toValue: 1,
@@ -104,125 +101,105 @@ export default function MoodSlider({
         }),
       ]),
     ]).start();
-  }, [scaleAnim, opacityAnim]);
+  };
   
-  // Update local value when prop changes
+  // Update from props when value changes
   useEffect(() => {
-    setLocalMoodValue(value);
-  }, [value]);
-  
-  // Animate emoji when mood changes (but only when it actually changes)
-  useEffect(() => {
-    if (localMoodValue !== null && localMoodValue !== prevValueRef.current) {
-      animateEmoji();
-      prevValueRef.current = localMoodValue;
+    if (!isUserDragging) {
+      console.log('Setting values from prop:', value);
+      setCurrentSliderValue(value);
+      setDisplayedMood(value);
     }
-  }, [localMoodValue, animateEmoji]);
+  }, [value, isUserDragging]);
   
-  // Check subscription tier
+  // Load initial mood data
   useEffect(() => {
-    const checkSubscription = async () => {
-      const tier = await getCurrentSubscriptionTier();
-      setSubscriptionTier(tier);
-    };
-    
-    checkSubscription();
-  }, []);
-  
-  // Load today's mood entry when component mounts
-  useEffect(() => {
-    const loadTodayMood = async () => {
+    const loadMoodData = async () => {
       try {
-        console.log('Loading today\'s mood entry...');
         setIsLoading(true);
         
         // Check if user is authenticated
         const { data: { session }, error: sessionError } = await supabase.auth.getSession();
-        if (sessionError) {
-          console.error('Session error:', sessionError);
+        if (sessionError || !session) {
+          console.error('Session error or no session:', sessionError);
           return;
         }
         
-        if (!session) {
-          console.log('No active session found');
-          return;
-        }
+        // Get subscription tier
+        const tier = await getCurrentSubscriptionTier();
+        setSubscriptionTier(tier);
         
-        // Get today's date in YYYY-MM-DD format
-        const today = new Date().toISOString().split('T')[0];
+        // Get today's mood entry
+        const todayEntry = await getTodayMoodEntry();
         
-        // Query mood entry for today
-        const { data, error } = await supabase
-          .from('mood_entries')
-          .select('*')
-          .eq('user_id', session.user.id)
-          .eq('date', today)
-          .single();
-        
-        if (error) {
-          if (error.code === 'PGRST116') {
-            // No rows returned - this is not an error for us
-            console.log('No mood entry found for today');
-            onValueChange(null);
-            setIsSaved(false);
-            setFreeLimitReached(false);
-          } else {
-            console.error('Error fetching mood entry:', error);
-          }
-        } else if (data) {
-          console.log('Found mood entry for today:', data);
-          onValueChange(data.rating);
+        if (todayEntry) {
+          console.log('Found mood entry for today:', todayEntry);
+          setCurrentSliderValue(todayEntry.rating);
+          setDisplayedMood(todayEntry.rating);
+          onValueChange(todayEntry.rating);
           setIsSaved(true);
           
-          // Check if the entry is editable (today's entry)
-          setIsEditable(true); // Today's entry is always editable
-          
           // If user is on free plan and already has a mood entry for today, disable the slider
-          const tier = await getCurrentSubscriptionTier();
           if (tier === 'free') {
             setFreeLimitReached(true);
           }
+        } else {
+          console.log('No mood entry found for today');
+          // Important: Only set values if they exist, otherwise leave as null
+          if (value !== null) {
+            setCurrentSliderValue(value);
+            setDisplayedMood(value);
+          } else {
+            // Set to null to indicate no mood selected
+            setCurrentSliderValue(null);
+            setDisplayedMood(null);
+          }
+          setIsSaved(false);
+        }
+        
+        // For premium users, check how many entries they've made today
+        if (tier === 'premium') {
+          const detailedEntries = await getTodayDetailedMoodEntries();
+          setTodayEntriesCount(detailedEntries.length);
         }
       } catch (error) {
-        console.error('Error loading today\'s mood:', error);
+        console.error('Error loading mood data:', error);
       } finally {
         setIsLoading(false);
-        initialLoadRef.current = false;
       }
     };
     
-    loadTodayMood();
-  }, [onValueChange]);
+    loadMoodData();
+  }, [onValueChange, value]);
   
-  // Debounced slider value change handler
-  const handleSliderChange = useCallback((sliderValue: number) => {
-    // Convert to integer between 1-5
-    const moodRating = Math.round(sliderValue) as MoodRating;
+  // Handle slider value change (while dragging)
+  const handleSliderChange = (newValue: number) => {
+    const moodRating = Math.round(newValue) as MoodRating;
     
-    // Mark that user has moved the slider
-    if (!hasUserMoved) {
-      setHasUserMoved(true);
-    }
+    // Set that user is dragging
+    setIsUserDragging(true);
     
-    // Update local state immediately for UI updates
-    setLocalMoodValue(moodRating);
+    // Update both the slider value and displayed mood
+    setCurrentSliderValue(moodRating);
+    setDisplayedMood(moodRating);
     
-    // Only update parent component if value has changed
-    if (moodRating !== value) {
-      onValueChange(moodRating);
-    }
-  }, [hasUserMoved, onValueChange, value]);
+    // Animate the emoji
+    animateEmoji();
+    
+    // Update parent component
+    onValueChange(moodRating);
+  };
   
-  // Handle slider value change (when sliding completes)
-  const handleSlidingComplete = async (sliderValue: number) => {
-    // Only save if the user has actively moved the slider
-    if (!hasUserMoved && !initialLoadRef.current) {
-      console.log('Slider not moved by user, not saving');
-      return;
-    }
+  // Handle slider release
+  const handleSlidingComplete = async (newValue: number) => {
+    const moodRating = Math.round(newValue) as MoodRating;
     
-    // Convert to integer between 1-5
-    const moodRating = Math.round(sliderValue) as MoodRating;
+    // Set that user is no longer dragging
+    setIsUserDragging(false);
+    
+    // Ensure values are in sync
+    setCurrentSliderValue(moodRating);
+    setDisplayedMood(moodRating);
     
     // Save to database
     try {
@@ -239,33 +216,126 @@ export default function MoodSlider({
       // Get today's date in YYYY-MM-DD format
       const today = new Date().toISOString().split('T')[0];
       
-      // Check if an entry already exists for today
-      const { data: existingEntry, error: checkError } = await supabase
-        .from('mood_entries')
-        .select('*')
-        .eq('user_id', session.user.id)
-        .eq('date', today)
-        .single();
-      
       // Check subscription tier
       const tier = await getCurrentSubscriptionTier();
       
-      // If user is on free plan and already has a mood entry for today, show an error
-      if (tier === 'free' && existingEntry) {
-        Alert.alert(
-          'Free Plan Limit Reached',
-          'Free users can only log their mood once per day. Upgrade to premium for unlimited mood logging.',
-          [{ text: 'OK' }]
-        );
-        setFreeLimitReached(true);
-        return;
-      }
-      
-      let savedEntry;
-      
-      if (checkError && checkError.code === 'PGRST116') {
+      // For premium users, always allow new entries
+      if (tier === 'premium') {
+        // Insert a new detailed entry
+        const { data: detailedEntry, error: detailedError } = await supabase
+          .from('mood_entries_detailed')
+          .insert([
+            { 
+              user_id: session.user.id, 
+              date: today, 
+              time: new Date().toISOString().split('T')[1], 
+              rating: moodRating
+            }
+          ])
+          .select()
+          .single();
+        
+        if (detailedError) {
+          console.error('Error inserting detailed mood entry:', detailedError);
+          Alert.alert('Error', 'Failed to save your mood. Please try again.');
+          return;
+        }
+        
+        // Get all entries for today to calculate average
+        const { data: todayEntries, error: entriesError } = await supabase
+          .from('mood_entries_detailed')
+          .select('rating')
+          .eq('user_id', session.user.id)
+          .eq('date', today);
+        
+        if (entriesError) {
+          console.error('Error fetching today\'s mood entries:', entriesError);
+          return;
+        }
+        
+        // Calculate average rating
+        const sum = todayEntries.reduce((total, entry) => total + entry.rating, 0);
+        const averageRating = Math.round(sum / todayEntries.length) as MoodRating;
+        
+        // Update today's entries count
+        setTodayEntriesCount(todayEntries.length);
+        
+        // Check if a summary entry already exists for today
+        const { data: existingEntry, error: checkError } = await supabase
+          .from('mood_entries')
+          .select('*')
+          .eq('user_id', session.user.id)
+          .eq('date', today)
+          .single();
+        
+        if (existingEntry) {
+          // Update the existing summary entry with the new average
+          const { data, error } = await supabase
+            .from('mood_entries')
+            .update({ rating: averageRating })
+            .eq('id', existingEntry.id)
+            .select()
+            .single();
+          
+          if (error) {
+            console.error('Error updating mood entry:', error);
+            return;
+          }
+          
+          // Update displayed mood with the new average
+          setDisplayedMood(averageRating);
+        } else {
+          // Insert a new summary entry
+          const { data, error } = await supabase
+            .from('mood_entries')
+            .insert([
+              { user_id: session.user.id, date: today, rating: averageRating }
+            ])
+            .select()
+            .single();
+          
+          if (error) {
+            console.error('Error inserting mood entry:', error);
+            return;
+          }
+          
+          // Update displayed mood with the new average
+          setDisplayedMood(averageRating);
+        }
+        
+        setIsSaved(true);
+        showSuccessMessage(`Mood saved! (Entry #${todayEntries.length} today)`);
+        setShowDetailsInput(true);
+        
+        // Call the onMoodSaved callback to refresh parent component data
+        if (onMoodSaved) {
+          onMoodSaved();
+        }
+      } else {
+        // For free users, check if an entry already exists for today
+        const { data: existingEntry, error: checkError } = await supabase
+          .from('mood_entries')
+          .select('*')
+          .eq('user_id', session.user.id)
+          .eq('date', today)
+          .single();
+        
+        // If user is on free plan and already has a mood entry for today, show an error
+        if (existingEntry) {
+          Alert.alert(
+            'Free Plan Limit Reached',
+            'Free users can only log their mood once per day. Upgrade to premium for unlimited mood logging.',
+            [{ text: 'OK' }]
+          );
+          setFreeLimitReached(true);
+          
+          // Reset displayed mood to the existing entry
+          setDisplayedMood(existingEntry.rating);
+          setCurrentSliderValue(existingEntry.rating);
+          return;
+        }
+        
         // No entry exists, create a new one
-        console.log('Creating new mood entry for today');
         const { data, error } = await supabase
           .from('mood_entries')
           .insert([
@@ -280,72 +350,34 @@ export default function MoodSlider({
           return;
         }
         
-        savedEntry = data;
-      } else if (existingEntry) {
-        // Entry exists, update it
-        console.log('Updating existing mood entry for today:', existingEntry);
-        const { data, error } = await supabase
-          .from('mood_entries')
-          .update({ rating: moodRating })
-          .eq('id', existingEntry.id)
-          .select()
-          .single();
-        
-        if (error) {
-          console.error('Error updating mood entry:', error);
-          Alert.alert('Error', 'Failed to update your mood. Please try again.');
-          return;
-        }
-        
-        savedEntry = data;
-      }
-      
-      if (savedEntry) {
         setIsSaved(true);
-        console.log('Mood saved successfully:', savedEntry);
-        
-        // Show success message
         showSuccessMessage("Mood saved for today!");
-        
-        // Show details input after saving mood
         setShowDetailsInput(true);
-        
-        // If user is on free plan, set the free limit reached flag
-        if (tier === 'free') {
-          setFreeLimitReached(true);
-        }
+        setFreeLimitReached(true);
         
         // Call the onMoodSaved callback to refresh parent component data
         if (onMoodSaved) {
           onMoodSaved();
         }
-      } else {
-        console.error('Failed to save mood: No entry returned');
-        Alert.alert('Error', 'Failed to save your mood. Please try again.');
       }
     } catch (error) {
       console.error('Error saving mood:', error);
       Alert.alert('Error', 'Failed to save your mood. Please try again.');
     } finally {
       setIsLoading(false);
-      // Reset hasUserMoved after saving
-      setHasUserMoved(false);
     }
   };
   
   // Handle mood details submission
   const handleMoodDetailsSubmit = async (details: string) => {
-    if (!localMoodValue) return;
+    if (!displayedMood) return;
     
     try {
       if (onMoodDetailsSubmitted) {
-        await onMoodDetailsSubmitted(localMoodValue, details);
+        await onMoodDetailsSubmitted(displayedMood, details);
       }
       
-      // Show success message
       showSuccessMessage("Thanks for sharing! We've updated your recommendations.");
-      
-      // Hide the details input after submission
       setShowDetailsInput(false);
     } catch (error) {
       console.error('Error submitting mood details:', error);
@@ -355,17 +387,14 @@ export default function MoodSlider({
   
   // Handle generating recommendations without details
   const handleGenerateRecommendations = async () => {
-    if (!localMoodValue) return;
+    if (!displayedMood) return;
     
     try {
-      if (onGenerateRecommendations) {
-        await onGenerateRecommendations(localMoodValue);
+      if (onMoodDetailsSubmitted) {
+        await onMoodDetailsSubmitted(displayedMood, "");
       }
       
-      // Show success message
       showSuccessMessage("Generating recommendations based on your mood!");
-      
-      // Hide the details input after generating recommendations
       setShowDetailsInput(false);
     } catch (error) {
       console.error('Error generating recommendations:', error);
@@ -376,41 +405,54 @@ export default function MoodSlider({
   // Determine if slider should be disabled
   const isSliderDisabled = disabled || !isEditable || isLoading || (subscriptionTier === 'free' && freeLimitReached);
   
-  // Get message for free plan limit
-  const getFreePlanLimitMessage = () => {
+  // Get message for free plan limit or premium entries
+  const getStatusMessage = () => {
     if (subscriptionTier === 'free' && freeLimitReached) {
       return "Free plan limited to 1 mood log per day. Upgrade for unlimited logs.";
+    } else if (subscriptionTier === 'premium' && todayEntriesCount > 0) {
+      return `You've logged your mood ${todayEntriesCount} time${todayEntriesCount !== 1 ? 's' : ''} today.`;
     }
+    return null;
+  };
+  
+  // Get the slider value to display - UPDATED to not default to any position
+  const getSliderValue = () => {
+    if (currentSliderValue !== null) {
+      return currentSliderValue;
+    }
+    // If no mood is selected, don't default to any position
     return null;
   };
   
   return (
     <View style={styles.container}>
-      {localMoodValue === null ? (
+      {/* Empty state message when no mood is selected */}
+      {displayedMood === null && !isUserDragging && (
         <View style={styles.emptyStateContainer}>
           <Text style={styles.emptyStateText}>How are you feeling today?</Text>
           <Text style={styles.emptyStateSubText}>Move the slider to select your mood</Text>
         </View>
-      ) : null}
+      )}
       
+      {/* Slider component */}
       <Slider
         style={styles.slider}
         minimumValue={1}
         maximumValue={5}
         step={1}
-        value={localMoodValue || 3} // Default to middle position visually, but don't save it
+        value={getSliderValue() || undefined}
         onValueChange={handleSliderChange}
         onSlidingComplete={handleSlidingComplete}
         minimumTrackTintColor={currentMood?.color || theme.colors.border}
         maximumTrackTintColor={theme.colors.border}
         thumbTintColor={currentMood?.color || theme.colors.primary}
         disabled={isSliderDisabled}
-        // Add these props for smoother sliding
         tapToSeek={true}
         thumbStyle={styles.sliderThumb}
         trackStyle={styles.sliderTrack}
       />
       
+      {/* Slider labels */}
       <View style={styles.labelContainer}>
         {moodOptions.map((option) => (
           <View key={option.rating} style={styles.labelItem}>
@@ -418,7 +460,7 @@ export default function MoodSlider({
             <Text 
               style={[
                 styles.sliderLabel,
-                localMoodValue === option.rating && { color: option.color, fontWeight: theme.fontWeights.bold }
+                currentSliderValue === option.rating && { color: option.color, fontWeight: theme.fontWeights.bold }
               ]}
             >
               {option.rating}
@@ -427,50 +469,62 @@ export default function MoodSlider({
         ))}
       </View>
       
-      <View style={styles.moodDisplay}>
-        {localMoodValue ? (
-          <>
-            <Animated.Text 
-              style={[
-                styles.emoji,
-                { 
-                  transform: [{ scale: scaleAnim }],
-                  opacity: opacityAnim
-                }
-              ]}
-            >
-              {currentMood?.emoji}
-            </Animated.Text>
-            <Text style={[styles.moodLabel, { color: currentMood?.color }]}>
-              {currentMood?.label}
+      {/* Mood display - only show if there's a mood to display or user is dragging */}
+      {(displayedMood !== null || isUserDragging) && (
+        <View style={styles.moodDisplay}>
+          {/* Large emoji and mood label */}
+          {currentMood && (
+            <>
+              <Animated.Text 
+                style={[
+                  styles.emoji,
+                  { 
+                    transform: [{ scale: scaleAnim }],
+                    opacity: opacityAnim
+                  }
+                ]}
+              >
+                {currentMood.emoji}
+              </Animated.Text>
+              <Text style={[styles.moodLabel, { color: currentMood.color }]}>
+                {currentMood.label}
+              </Text>
+            </>
+          )}
+          
+          {/* Status messages */}
+          {isUserDragging && (
+            <Text style={styles.draggingText}>Release to save this mood</Text>
+          )}
+          
+          {isLoading ? (
+            <Text style={styles.savingText}>Saving your mood...</Text>
+          ) : isSaved && !isUserDragging ? (
+            <Text style={styles.savedText}>
+              {subscriptionTier === 'premium' 
+                ? "Your mood is saved - you can update it anytime" 
+                : "Today's mood is saved"}
             </Text>
-          </>
-        ) : (
-          <Text style={styles.noMoodText}>No mood selected</Text>
-        )}
-        
-        {isLoading ? (
-          <Text style={styles.savingText}>Saving your mood...</Text>
-        ) : isSaved && localMoodValue ? (
-          <Text style={styles.savedText}>
-            {isEditable 
-              ? "Today's mood is saved" 
-              : "This mood is locked and can't be changed"}
-          </Text>
-        ) : null}
-        
-        {/* Free plan limit message */}
-        {getFreePlanLimitMessage() && (
-          <Text style={styles.freeLimitText}>{getFreePlanLimitMessage()}</Text>
-        )}
-      </View>
+          ) : null}
+          
+          {/* Free plan limit or premium entries count */}
+          {getStatusMessage() && !isUserDragging && (
+            <Text style={[
+              styles.statusText,
+              subscriptionTier === 'free' && freeLimitReached ? styles.freeLimitText : styles.premiumStatusText
+            ]}>
+              {getStatusMessage()}
+            </Text>
+          )}
+        </View>
+      )}
       
-      {/* Mood details input with mood rating passed */}
-      {isSaved && showDetailsInput && localMoodValue && (
+      {/* Mood details input */}
+      {isSaved && showDetailsInput && !isUserDragging && displayedMood !== null && (
         <MoodDetailsInput 
           isVisible={true}
           onSubmit={handleMoodDetailsSubmit}
-          moodRating={localMoodValue}
+          moodRating={displayedMood}
           onGenerateRecommendations={handleGenerateRecommendations}
         />
       )}
@@ -535,6 +589,12 @@ const styles = StyleSheet.create({
     fontSize: 20,
     fontWeight: theme.fontWeights.bold,
   },
+  draggingText: {
+    fontSize: 14,
+    color: theme.colors.primary,
+    marginTop: 8,
+    fontStyle: 'italic',
+  },
   savedText: {
     fontSize: 12,
     color: theme.colors.subtext,
@@ -547,11 +607,16 @@ const styles = StyleSheet.create({
     marginTop: 8,
     fontStyle: 'italic',
   },
-  freeLimitText: {
+  statusText: {
     fontSize: 12,
-    color: theme.colors.error,
     marginTop: 8,
     fontWeight: theme.fontWeights.medium,
+  },
+  freeLimitText: {
+    color: theme.colors.error,
+  },
+  premiumStatusText: {
+    color: theme.colors.accent,
   },
   emptyStateContainer: {
     alignItems: 'center',
@@ -567,10 +632,5 @@ const styles = StyleSheet.create({
     color: theme.colors.subtext,
     fontStyle: 'italic',
     marginTop: 4,
-  },
-  noMoodText: {
-    fontSize: 18,
-    color: theme.colors.subtext,
-    fontStyle: 'italic',
   },
 });

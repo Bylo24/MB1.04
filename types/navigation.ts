@@ -13,8 +13,17 @@ export type RootStackParamList = {
   Login: undefined;
   Main: NavigatorScreenParams<TabParamList>;
   Subscription: undefined;
-  SubscriptionComparison: undefined;
+  SubscriptionComparison: { source?: string };
   PremiumComparison: undefined;
+  GuidedExercises: { isPremium?: boolean };
+  ExerciseCategory: { 
+    category: 'meditation' | 'breathing' | 'mindfulness' | 'physical';
+    isPremium?: boolean;
+  };
+  ExerciseDetail: { 
+    exerciseId: string;
+    isPremium?: boolean;
+  };
 };
 
 export type MoodEntry = {

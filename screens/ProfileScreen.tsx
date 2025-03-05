@@ -11,7 +11,8 @@ import {
   TextInput, 
   Switch,
   FlatList,
-  Platform
+  Platform,
+  Dimensions
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { theme } from '../theme/theme';
@@ -31,6 +32,10 @@ import {
   setNotificationTime,
   scheduleDailyReminder
 } from '../services/notificationService';
+import AppIconSelector from '../components/AppIconSelector';
+
+// Get screen dimensions
+const { width: screenWidth } = Dimensions.get('window');
 
 interface ProfileScreenProps {
   onClose: () => void;
@@ -83,6 +88,9 @@ export default function ProfileScreen({ onClose, onLogout }: ProfileScreenProps)
   const [newName, setNewName] = useState('');
   const [isSavingProfile, setIsSavingProfile] = useState(false);
   
+  // App icon selector state
+  const [appIconSelectorVisible, setAppIconSelectorVisible] = useState(false);
+  
   // Available languages
   const languages = [
     { code: 'en', name: 'English' },
@@ -132,14 +140,14 @@ export default function ProfileScreen({ onClose, onLogout }: ProfileScreenProps)
         
         const user = await getCurrentUser();
         if (user) {
-          // Use stored name if available, otherwise extract from email
+          // Use stored name if available, otherwise use a generic name
           if (storedName) {
             setUserName(storedName);
           } else {
-            const name = user.email ? user.email.split('@')[0] : 'User';
-            setUserName(name);
-            // Store the name for future use
-            await AsyncStorage.setItem('user_display_name', name);
+            // Use a generic name instead of email
+            setUserName('Friend');
+            // Store the generic name for future use
+            await AsyncStorage.setItem('user_display_name', 'Friend');
           }
           
           setEmail(user.email || '');
@@ -446,23 +454,23 @@ export default function ProfileScreen({ onClose, onLogout }: ProfileScreenProps)
   // Open premium modal
   const handleOpenPremiumModal = () => {
     if (subscriptionTier === 'premium') {
-      // If already premium, show cancel option
+      // If already premium, show information about managing subscriptions
       Alert.alert(
         'Premium Subscription',
-        'You currently have an active premium subscription.',
-        [
-          { text: 'OK' },
-          { 
-            text: 'Cancel Subscription', 
-            style: 'destructive',
-            onPress: handleSubscriptionToggle
-          }
-        ]
+        Platform.OS === 'ios' 
+          ? 'You currently have an active premium subscription. To manage or cancel your subscription, please go to Settings > Apple ID > Subscriptions on your iOS device.'
+          : 'You currently have an active premium subscription. To manage or cancel your subscription, please go to Google Play Store > Account > Subscriptions on your Android device.',
+        [{ text: 'OK' }]
       );
     } else {
       // If free, show subscription comparison screen
       handleOpenSubscriptionComparison();
     }
+  };
+  
+  // Open app icon selector
+  const handleOpenAppIconSelector = () => {
+    setAppIconSelectorVisible(true);
   };
   
   if (isLoading) {
@@ -508,8 +516,12 @@ export default function ProfileScreen({ onClose, onLogout }: ProfileScreenProps)
           <View style={styles.avatarContainer}>
             <Text style={styles.avatarText}>{userName.charAt(0).toUpperCase()}</Text>
           </View>
-          <Text style={styles.userName}>{userName}</Text>
-          <Text style={styles.email}>{email}</Text>
+          <Text style={styles.userName} numberOfLines={1} ellipsizeMode="tail">
+            {userName}
+          </Text>
+          <Text style={styles.email} numberOfLines={1} ellipsizeMode="tail">
+            {email}
+          </Text>
           
           <TouchableOpacity
             onPress={handleOpenPremiumModal}
@@ -573,30 +585,40 @@ export default function ProfileScreen({ onClose, onLogout }: ProfileScreenProps)
             
             <Text style={styles.subscriptionDescription}>
               {subscriptionTier === 'premium' 
-                ? 'You have access to all premium features including unlimited mood check-ins, advanced analytics, and more.'
+                ? `You have access to all premium features including unlimited mood check-ins, advanced analytics, and more.`
                 : 'Upgrade to Premium for unlimited mood check-ins, advanced analytics, and more premium features.'}
             </Text>
             
-            <TouchableOpacity 
-              style={[
-                styles.subscriptionButton,
-                subscriptionTier === 'premium' ? styles.cancelButton : styles.upgradeButton,
-                isUpdatingSubscription && styles.disabledButton
-              ]}
-              onPress={subscriptionTier === 'premium' ? handleSubscriptionToggle : handleOpenSubscriptionComparison}
-              disabled={isUpdatingSubscription}
-            >
-              {isUpdatingSubscription ? (
-                <ActivityIndicator size="small" color={subscriptionTier === 'premium' ? theme.colors.error : 'white'} />
-              ) : (
-                <Text style={[
-                  styles.subscriptionButtonText,
-                  subscriptionTier === 'premium' ? styles.cancelButtonText : styles.upgradeButtonText
-                ]}>
-                  {subscriptionTier === 'premium' ? 'Cancel Subscription' : 'Upgrade to Premium'}
-                </Text>
-              )}
-            </TouchableOpacity>
+            {subscriptionTier === 'premium' && (
+              <Text style={styles.subscriptionManageText}>
+                {Platform.OS === 'ios' 
+                  ? 'To manage your subscription, go to Settings > Apple ID > Subscriptions.' 
+                  : 'To manage your subscription, go to Google Play Store > Account > Subscriptions.'}
+              </Text>
+            )}
+            
+            {subscriptionTier !== 'premium' && (
+              <TouchableOpacity 
+                style={[
+                  styles.subscriptionButton,
+                  styles.upgradeButton,
+                  isUpdatingSubscription && styles.disabledButton
+                ]}
+                onPress={handleOpenSubscriptionComparison}
+                disabled={isUpdatingSubscription}
+              >
+                {isUpdatingSubscription ? (
+                  <ActivityIndicator size="small" color="white" />
+                ) : (
+                  <Text style={[
+                    styles.subscriptionButtonText,
+                    styles.upgradeButtonText
+                  ]}>
+                    Upgrade to Premium
+                  </Text>
+                )}
+              </TouchableOpacity>
+            )}
           </View>
         </View>
         
@@ -621,6 +643,19 @@ export default function ProfileScreen({ onClose, onLogout }: ProfileScreenProps)
             <Text style={styles.menuItemText}>Language</Text>
             <View style={styles.menuItemRight}>
               <Text style={styles.menuItemValue}>{currentLanguage}</Text>
+              <Ionicons name="chevron-forward" size={20} color={theme.colors.subtext} />
+            </View>
+          </TouchableOpacity>
+          
+          {/* New App Icon Selector Option */}
+          <TouchableOpacity 
+            style={styles.menuItem}
+            onPress={handleOpenAppIconSelector}
+          >
+            <Ionicons name="apps-outline" size={24} color={theme.colors.text} />
+            <Text style={styles.menuItemText}>App Icon</Text>
+            <View style={styles.menuItemRight}>
+              <Text style={styles.menuItemValue}>Customize</Text>
               <Ionicons name="chevron-forward" size={20} color={theme.colors.subtext} />
             </View>
           </TouchableOpacity>
@@ -809,7 +844,9 @@ export default function ProfileScreen({ onClose, onLogout }: ProfileScreenProps)
               <View style={styles.formGroup}>
                 <Text style={styles.formLabel}>Email</Text>
                 <View style={styles.disabledInput}>
-                  <Text style={styles.disabledInputText}>{email}</Text>
+                  <Text style={styles.disabledInputText} numberOfLines={1} ellipsizeMode="tail">
+                    {email}
+                  </Text>
                 </View>
                 <Text style={styles.formHint}>Email cannot be changed</Text>
               </View>
@@ -942,6 +979,14 @@ export default function ProfileScreen({ onClose, onLogout }: ProfileScreenProps)
         </View>
       </Modal>
       
+      {/* App Icon Selector Modal */}
+      <AppIconSelector
+        visible={appIconSelectorVisible}
+        onClose={() => setAppIconSelectorVisible(false)}
+        onUpgrade={handleOpenSubscriptionComparison}
+        isPremium={subscriptionTier === 'premium'}
+      />
+      
       {/* Premium Feature Modal */}
       <PremiumFeatureModal
         visible={premiumModalVisible}
@@ -974,10 +1019,11 @@ const styles = StyleSheet.create({
     color: theme.colors.text,
   },
   closeButton: {
-    padding: 4,
+    padding: 8,
+    marginLeft: 4,
   },
   placeholder: {
-    width: 36, // Same width as close button for balance
+    width: 40, // Same width as close button for balance
   },
   content: {
     flex: 1,
@@ -989,6 +1035,7 @@ const styles = StyleSheet.create({
   profileHeader: {
     alignItems: 'center',
     marginBottom: 24,
+    paddingHorizontal: 16,
   },
   avatarContainer: {
     width: 80,
@@ -1009,17 +1056,21 @@ const styles = StyleSheet.create({
     fontWeight: theme.fontWeights.bold,
     color: theme.colors.text,
     marginBottom: 4,
+    maxWidth: screenWidth - 64, // Ensure text doesn't overflow
+    textAlign: 'center',
   },
   email: {
     fontSize: 16,
     color: theme.colors.subtext,
     marginBottom: 8,
+    maxWidth: screenWidth - 64, // Ensure text doesn't overflow
+    textAlign: 'center',
   },
   subscriptionBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 10,
-    paddingVertical: 4,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
     borderRadius: 12,
     marginTop: 8,
   },
@@ -1044,6 +1095,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-around',
     marginBottom: 24,
+    paddingHorizontal: 8,
   },
   statCard: {
     backgroundColor: theme.colors.card,
@@ -1071,6 +1123,7 @@ const styles = StyleSheet.create({
     fontWeight: theme.fontWeights.bold,
     color: theme.colors.text,
     marginBottom: 12,
+    paddingHorizontal: 4,
   },
   settingSubtitle: {
     fontSize: 16,
@@ -1091,11 +1144,13 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: 12,
+    flexWrap: 'wrap',
   },
   subscriptionTitle: {
     fontSize: 18,
     fontWeight: theme.fontWeights.bold,
     color: theme.colors.text,
+    marginRight: 8,
   },
   subscriptionStatusBadge: {
     paddingHorizontal: 8,
@@ -1121,13 +1176,21 @@ const styles = StyleSheet.create({
   subscriptionDescription: {
     fontSize: 14,
     color: theme.colors.subtext,
+    marginBottom: 12,
+    lineHeight: 20,
+  },
+  subscriptionManageText: {
+    fontSize: 14,
+    color: theme.colors.subtext,
     marginBottom: 16,
     lineHeight: 20,
+    fontStyle: 'italic',
   },
   subscriptionButton: {
     borderRadius: 8,
     paddingVertical: 12,
     alignItems: 'center',
+    marginTop: 4,
   },
   upgradeButton: {
     backgroundColor: theme.colors.primary,
@@ -1168,11 +1231,13 @@ const styles = StyleSheet.create({
   menuItemRight: {
     flexDirection: 'row',
     alignItems: 'center',
+    maxWidth: '40%',
   },
   menuItemValue: {
     fontSize: 14,
     color: theme.colors.subtext,
     marginRight: 8,
+    flexShrink: 1,
   },
   settingItem: {
     flexDirection: 'row',
@@ -1187,6 +1252,7 @@ const styles = StyleSheet.create({
   settingTextContainer: {
     flexDirection: 'row',
     alignItems: 'center',
+    flex: 1,
   },
   settingText: {
     fontSize: 16,
@@ -1218,6 +1284,7 @@ const styles = StyleSheet.create({
     color: theme.colors.subtext,
     marginLeft: 4,
     marginBottom: 16,
+    lineHeight: 20,
   },
   signOutButton: {
     flexDirection: 'row',
@@ -1255,7 +1322,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   modalContainer: {
-    width: '85%',
+    width: '90%',
     maxHeight: '80%',
     backgroundColor: theme.colors.background,
     borderRadius: 16,
@@ -1379,11 +1446,13 @@ const styles = StyleSheet.create({
   timePickerCancelButton: {
     fontSize: 16,
     color: theme.colors.subtext,
+    padding: 4,
   },
   timePickerSaveButton: {
     fontSize: 16,
     fontWeight: theme.fontWeights.semibold,
     color: theme.colors.primary,
+    padding: 4,
   },
   timePickerContent: {
     padding: 16,

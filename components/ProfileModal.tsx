@@ -35,11 +35,11 @@ export default function ProfileModal({ visible, onClose, onLogout }: ProfileModa
     console.log('Logout triggered in ProfileModal');
     // Close the modal first
     onClose();
-    // Then call the onLogout callback
+    // Then call the onLogout callback with a delay to allow animations to complete
     setTimeout(() => {
       console.log('Calling onLogout from ProfileModal');
       onLogout();
-    }, 300);
+    }, 500);
   };
   
   return (

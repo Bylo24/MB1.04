@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { StatusBar } from 'expo-status-bar';
-import { StyleSheet, Text, View, ActivityIndicator, Platform } from 'react-native';
+import { StyleSheet, Text, View, ActivityIndicator, Platform, Alert } from 'react-native';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
@@ -11,6 +11,11 @@ import SetupNameScreen from './screens/SetupNameScreen';
 import IntroductionScreen from './screens/IntroductionScreen';
 import TipsScreen from './screens/TipsScreen';
 import SubscriptionComparisonScreen from './screens/SubscriptionComparisonScreen';
+import GuidedExercisesScreen from './screens/GuidedExercisesScreen';
+import ExerciseCategoryScreen from './screens/ExerciseCategoryScreen';
+import ExercisePlayerScreen from './screens/ExercisePlayerScreen';
+import StreakRewardsScreen from './screens/StreakRewardsScreen';
+import MoodPredictionsScreen from './screens/MoodPredictionsScreen';
 import { isAuthenticated, signOut, getCurrentUser } from './services/authService';
 import { supabase } from './utils/supabaseClient';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -29,6 +34,14 @@ type RootStackParamList = {
   Tips: undefined;
   Home: undefined;
   SubscriptionComparison: { source: 'limit' | 'upgrade' | 'settings' | 'manage' };
+  GuidedExercises: { isPremium: boolean };
+  ExerciseCategory: { 
+    category: 'meditation' | 'breathing' | 'mindfulness' | 'physical';
+    isPremium: boolean;
+  };
+  ExercisePlayer: { exerciseId: string };
+  StreakRewards: { isPremium: boolean };
+  MoodPredictions: { isPremium: boolean };
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -47,6 +60,7 @@ export default function App() {
   const [userName, setUserName] = useState<string>('');
   const [isNewUser, setIsNewUser] = useState(false);
   const [initialRouteName, setInitialRouteName] = useState<keyof RootStackParamList>('Login');
+  const [isNavigationReady, setIsNavigationReady] = useState(false);
   
   // Refs for navigation
   const navigationRef = useRef<any>(null);
@@ -159,8 +173,10 @@ export default function App() {
   // Check if user has completed onboarding
   const checkOnboardingStatus = async () => {
     try {
+      console.log('Checking onboarding status...');
       // Check if user has completed onboarding
       const onboardingCompleted = await AsyncStorage.getItem('onboarding_completed');
+      console.log('Onboarding completed:', onboardingCompleted);
       
       if (onboardingCompleted === 'true') {
         console.log('User has completed onboarding, proceeding to home');
@@ -168,14 +184,26 @@ export default function App() {
         const storedName = await AsyncStorage.getItem('user_display_name');
         if (storedName) {
           setUserName(storedName);
+          console.log('Using stored name:', storedName);
         } else {
           // Fall back to email-based name
-          const user = await getCurrentUser();
-          if (user?.email) {
-            const emailName = user.email.split('@')[0];
-            setUserName(emailName);
-            // Save this name for future use
-            await AsyncStorage.setItem('user_display_name', emailName);
+          try {
+            const user = await getCurrentUser();
+            if (user?.email) {
+              const emailName = user.email.split('@')[0];
+              setUserName(emailName);
+              console.log('Using email-based name:', emailName);
+              // Save this name for future use
+              await AsyncStorage.setItem('user_display_name', emailName);
+            } else {
+              console.log('No user email found, using default name');
+              setUserName('User');
+              await AsyncStorage.setItem('user_display_name', 'User');
+            }
+          } catch (error) {
+            console.error('Error getting current user:', error);
+            setUserName('User');
+            await AsyncStorage.setItem('user_display_name', 'User');
           }
         }
         setInitialRouteName('Home');
@@ -189,15 +217,25 @@ export default function App() {
           if (storedName) {
             setUserName(storedName);
             setInitialRouteName('Introduction');
+            console.log('User has name but needs to complete onboarding, going to Introduction');
           } else {
             // Get user email to extract name if available
-            const user = await getCurrentUser();
-            if (user?.email) {
-              const emailName = user.email.split('@')[0];
-              setUserName(emailName);
+            try {
+              const user = await getCurrentUser();
+              if (user?.email) {
+                const emailName = user.email.split('@')[0];
+                setUserName(emailName);
+                console.log('Using email-based name for new user:', emailName);
+              } else {
+                console.log('No user email found for new user, using default name');
+                setUserName('User');
+              }
+            } catch (error) {
+              console.error('Error getting current user for new user:', error);
+              setUserName('User');
             }
             
-            console.log('User needs to complete onboarding');
+            console.log('User needs to complete onboarding, going to SetupName');
             setInitialRouteName('SetupName');
           }
         } else {
@@ -209,14 +247,26 @@ export default function App() {
           const storedName = await AsyncStorage.getItem('user_display_name');
           if (storedName) {
             setUserName(storedName);
+            console.log('Using stored name for returning user:', storedName);
           } else {
             // Fall back to email-based name
-            const user = await getCurrentUser();
-            if (user?.email) {
-              const emailName = user.email.split('@')[0];
-              setUserName(emailName);
-              // Save this name for future use
-              await AsyncStorage.setItem('user_display_name', emailName);
+            try {
+              const user = await getCurrentUser();
+              if (user?.email) {
+                const emailName = user.email.split('@')[0];
+                setUserName(emailName);
+                console.log('Using email-based name for returning user:', emailName);
+                // Save this name for future use
+                await AsyncStorage.setItem('user_display_name', emailName);
+              } else {
+                console.log('No user email found for returning user, using default name');
+                setUserName('User');
+                await AsyncStorage.setItem('user_display_name', 'User');
+              }
+            } catch (error) {
+              console.error('Error getting current user for returning user:', error);
+              setUserName('User');
+              await AsyncStorage.setItem('user_display_name', 'User');
             }
           }
           
@@ -235,7 +285,20 @@ export default function App() {
   const handleLogin = (isSignUp: boolean) => {
     console.log('Login successful, isSignUp:', isSignUp);
     setIsNewUser(isSignUp);
-    checkOnboardingStatus();
+    
+    // Force navigation to Home screen directly
+    console.log('Forcing navigation to Home screen');
+    setInitialRouteName('Home');
+    setIsLoading(false);
+    
+    // If navigation is already ready, navigate programmatically
+    if (isNavigationReady && navigationRef.current) {
+      console.log('Navigation is ready, navigating programmatically');
+      navigationRef.current.reset({
+        index: 0,
+        routes: [{ name: 'Home' }],
+      });
+    }
   };
   
   // Handle logout
@@ -245,9 +308,24 @@ export default function App() {
       await signOut();
       console.log('Logout successful, updating UI');
       setInitialRouteName('Login');
+      
+      // Reset navigation stack
+      if (navigationRef.current) {
+        navigationRef.current.reset({
+          index: 0,
+          routes: [{ name: 'Login' }],
+        });
+      }
     } catch (error) {
       console.error('Error signing out:', error);
+      Alert.alert('Error', 'Failed to sign out. Please try again.');
     }
+  };
+  
+  // Handle navigation ready
+  const handleNavigationReady = () => {
+    console.log('Navigation is ready');
+    setIsNavigationReady(true);
   };
   
   if (isLoading) {
@@ -266,6 +344,7 @@ export default function App() {
     <SafeAreaProvider>
       <NavigationContainer
         ref={navigationRef}
+        onReady={handleNavigationReady}
       >
         <StatusBar style="light" />
         <Stack.Navigator 
@@ -342,6 +421,46 @@ export default function App() {
                 onClose={() => props.navigation.goBack()}
                 showCloseButton={true}
                 source={props.route.params?.source || 'upgrade'}
+              />
+            )}
+          </Stack.Screen>
+
+          <Stack.Screen name="GuidedExercises">
+            {props => (
+              <GuidedExercisesScreen 
+                {...props}
+              />
+            )}
+          </Stack.Screen>
+
+          <Stack.Screen name="ExerciseCategory">
+            {props => (
+              <ExerciseCategoryScreen 
+                {...props}
+              />
+            )}
+          </Stack.Screen>
+
+          <Stack.Screen name="ExercisePlayer">
+            {props => (
+              <ExercisePlayerScreen 
+                {...props}
+              />
+            )}
+          </Stack.Screen>
+
+          <Stack.Screen name="StreakRewards">
+            {props => (
+              <StreakRewardsScreen 
+                {...props}
+              />
+            )}
+          </Stack.Screen>
+
+          <Stack.Screen name="MoodPredictions">
+            {props => (
+              <MoodPredictionsScreen 
+                {...props}
               />
             )}
           </Stack.Screen>
