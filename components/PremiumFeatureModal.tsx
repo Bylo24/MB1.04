@@ -18,6 +18,18 @@ export default function PremiumFeatureModal({
   featureName,
   featureDescription
 }: PremiumFeatureModalProps) {
+  // Handle upgrade button press
+  const handleUpgradePress = () => {
+    // Close the modal first
+    onClose();
+    
+    // Then navigate to subscription screen after a short delay
+    // to ensure the modal is fully closed
+    setTimeout(() => {
+      onUpgrade();
+    }, 300);
+  };
+  
   return (
     <Modal
       visible={visible}
@@ -45,12 +57,7 @@ export default function PremiumFeatureModal({
           
           <TouchableOpacity 
             style={styles.upgradeButton} 
-            onPress={() => {
-              onClose(); // Close this modal first
-              setTimeout(() => {
-                onUpgrade(); // Then open the subscription screen
-              }, 300);
-            }}
+            onPress={handleUpgradePress}
           >
             <Text style={styles.upgradeButtonText}>See Premium Plans</Text>
           </TouchableOpacity>

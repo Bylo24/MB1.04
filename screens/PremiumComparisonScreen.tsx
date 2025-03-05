@@ -139,8 +139,6 @@ export default function PremiumComparisonScreen({
               <FeatureItem text="Guided Exercises & Meditations" isPremium />
               <FeatureItem text="Enhanced Streak Rewards" isPremium />
               <FeatureItem text="AI Mood Predictions" isPremium />
-              <FeatureItem text="Personalized Themes" isPremium />
-              <FeatureItem text="Journaling Feature" isPremium />
               <FeatureItem text="Ad-Free Experience" isPremium />
             </View>
           </View>

@@ -10,7 +10,7 @@ export default function MoodBuddyLogo({ size = 100, style }: MoodBuddyLogoProps)
   return (
     <View style={styles.container}>
       <Image
-        source={require('../assets/icon.png')}
+        source={require('../assets/mood-buddy-logo.png')}
         style={[
           {
             width: size,

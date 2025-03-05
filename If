@@ -1,9 +1,0 @@
-if (tier === 'free' && existingEntry) {
-     Alert.alert(
-       'Free Plan Limit Reached',
-       'Free users can only log their mood once per day. Upgrade to premium for unlimited mood logging.',
-       [{ text: 'OK' }]
-     );
-     setFreeLimitReached(true);
-     return;
-   }

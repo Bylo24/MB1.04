@@ -34,7 +34,7 @@ export default function IntroductionScreen({ onComplete, userName }: Introductio
         
         <View style={styles.imageContainer}>
           <Image 
-            source={require('../assets/splash-icon.png')} 
+            source={require('../assets/mood-buddy-logo.png')} 
             style={[styles.image, { width: imageSize, height: imageSize }]}
             resizeMode="contain"
           />

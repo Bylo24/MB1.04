@@ -176,8 +176,6 @@ export default function SubscriptionComparisonScreen({
               <BenefitItem text="Guided Exercises & Meditations" />
               <BenefitItem text="Unlock More Streak Rewards" />
               <BenefitItem text="AI Mood Predictions" />
-              <BenefitItem text="Personalized Themes" />
-              <BenefitItem text="Journaling Feature" />
               <BenefitItem text="No Ads" />
             </View>
           </View>
@@ -282,8 +280,6 @@ export default function SubscriptionComparisonScreen({
               <FeatureItem text="Guided Exercises & Meditations – Exclusive content tailored to user moods" isPremium />
               <FeatureItem text="Unlock More Streak Rewards – Special badges, streak recovery options" isPremium />
               <FeatureItem text="AI Mood Predictions – Get insights into future mood trends based on past data" isPremium />
-              <FeatureItem text="Personalized Themes – More color schemes" isPremium />
-              <FeatureItem text="Journaling Feature – Add diary entries" isPremium />
               <FeatureItem text="No Ads – Completely ad-free experience" isPremium />
             </View>
           </View>

@@ -1,5 +1,18 @@
 import React, { useState, useEffect } from 'react';
-import { StyleSheet, View, Text, TouchableOpacity, Alert, ActivityIndicator, ScrollView, Modal, TextInput, Switch } from 'react-native';
+import { 
+  StyleSheet, 
+  View, 
+  Text, 
+  TouchableOpacity, 
+  Alert, 
+  ActivityIndicator, 
+  ScrollView, 
+  Modal, 
+  TextInput, 
+  Switch,
+  FlatList,
+  Platform
+} from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { theme } from '../theme/theme';
 import { getCurrentUser } from '../services/authService';
@@ -10,11 +23,38 @@ import { MoodRating } from '../types';
 import { getCurrentSubscriptionTier, SubscriptionTier, toggleSubscriptionForDemo } from '../services/subscriptionService';
 import PremiumFeatureModal from '../components/PremiumFeatureModal';
 import SubscriptionComparisonScreen from './SubscriptionComparisonScreen';
+import DateTimePicker from '@react-native-community/datetimepicker';
+import { 
+  getNotificationsEnabled, 
+  setNotificationsEnabled, 
+  getNotificationTime,
+  setNotificationTime,
+  scheduleDailyReminder
+} from '../services/notificationService';
 
 interface ProfileScreenProps {
   onClose: () => void;
   onLogout: () => void;
 }
+
+// Hours for time picker
+const hours = Array.from({ length: 12 }, (_, i) => ({ 
+  value: i === 0 ? 12 : i, 
+  label: i === 0 ? '12' : i.toString().padStart(2, '0'),
+  actualHour: i === 0 ? 0 : i // 12 AM is hour 0 in 24-hour format
+}));
+
+// Minutes for time picker
+const minutes = Array.from({ length: 60 }, (_, i) => ({ 
+  value: i, 
+  label: i.toString().padStart(2, '0') 
+}));
+
+// AM/PM options
+const ampm = [
+  { value: 'AM', label: 'AM' },
+  { value: 'PM', label: 'PM' }
+];
 
 export default function ProfileScreen({ onClose, onLogout }: ProfileScreenProps) {
   const [userName, setUserName] = useState<string>('');
@@ -30,6 +70,13 @@ export default function ProfileScreen({ onClose, onLogout }: ProfileScreenProps)
   const [premiumModalVisible, setPremiumModalVisible] = useState(false);
   const [isUpdatingSubscription, setIsUpdatingSubscription] = useState(false);
   const [subscriptionComparisonVisible, setSubscriptionComparisonVisible] = useState(false);
+  
+  // Notification time states
+  const [notificationTime, setNotificationTimeState] = useState(new Date());
+  const [showTimePickerModal, setShowTimePickerModal] = useState(false);
+  const [selectedHour, setSelectedHour] = useState<number>(8);
+  const [selectedMinute, setSelectedMinute] = useState<number>(0);
+  const [selectedAmPm, setSelectedAmPm] = useState<string>('AM');
   
   // Edit profile states
   const [editProfileModalVisible, setEditProfileModalVisible] = useState(false);
@@ -62,8 +109,22 @@ export default function ProfileScreen({ onClose, onLogout }: ProfileScreenProps)
         }
         
         // Load notification preference
-        const notifications = await AsyncStorage.getItem('notifications_enabled');
-        setNotificationsEnabled(notifications !== 'false'); // Default to true
+        const notifications = await getNotificationsEnabled();
+        setNotificationsEnabled(notifications);
+        
+        // Load notification time
+        const { hour, minute } = await getNotificationTime();
+        const date = new Date();
+        date.setHours(hour, minute, 0);
+        setNotificationTimeState(date);
+        
+        // Set the hour, minute, and AM/PM values
+        const isPm = hour >= 12;
+        const hour12 = hour % 12 || 12; // Convert 24-hour to 12-hour format
+        
+        setSelectedHour(hour12);
+        setSelectedMinute(minute);
+        setSelectedAmPm(isPm ? 'PM' : 'AM');
         
         // Load subscription tier
         const tier = await getCurrentSubscriptionTier();
@@ -242,9 +303,107 @@ export default function ProfileScreen({ onClose, onLogout }: ProfileScreenProps)
   
   // Handle notifications toggle
   const handleNotificationsToggle = async (value: boolean) => {
-    setNotificationsEnabled(value);
-    await AsyncStorage.setItem('notifications_enabled', value.toString());
-    // In a real app, you would register/unregister for notifications here
+    try {
+      setNotificationsEnabled(value);
+      await setNotificationsEnabled(value);
+      
+      // Show confirmation to the user
+      if (value) {
+        // Schedule notifications immediately when enabled
+        await scheduleDailyReminder();
+        
+        Alert.alert(
+          'Notifications Enabled',
+          `You will receive daily reminders at ${formatTime()} to check in with your mood.`,
+          [{ text: 'OK' }]
+        );
+      } else {
+        Alert.alert(
+          'Notifications Disabled',
+          'You will no longer receive daily reminders.',
+          [{ text: 'OK' }]
+        );
+      }
+    } catch (error) {
+      console.error('Error toggling notifications:', error);
+      // Revert UI state if there was an error
+      setNotificationsEnabled(!value);
+      Alert.alert(
+        'Error',
+        'There was a problem updating your notification settings. Please try again.'
+      );
+    }
+  };
+  
+  // Open time picker modal
+  const handleOpenTimePicker = () => {
+    setShowTimePickerModal(true);
+  };
+  
+  // Handle hour selection
+  const handleHourSelect = (hour: number) => {
+    setSelectedHour(hour);
+  };
+  
+  // Handle minute selection
+  const handleMinuteSelect = (minute: number) => {
+    setSelectedMinute(minute);
+  };
+  
+  // Handle AM/PM selection
+  const handleAmPmSelect = (value: string) => {
+    setSelectedAmPm(value);
+  };
+  
+  // Save time selection
+  const handleSaveTime = async () => {
+    try {
+      // Convert to 24-hour format
+      let hour24 = selectedHour;
+      
+      // Adjust for 12-hour to 24-hour conversion
+      if (selectedAmPm === 'PM' && selectedHour !== 12) {
+        hour24 += 12;
+      } else if (selectedAmPm === 'AM' && selectedHour === 12) {
+        hour24 = 0;
+      }
+      
+      // Save the time
+      await setNotificationTime(hour24, selectedMinute);
+      
+      // Update the notification time state
+      const newDate = new Date();
+      newDate.setHours(hour24, selectedMinute, 0);
+      setNotificationTimeState(newDate);
+      
+      // Reschedule notifications with the new time if enabled
+      if (notificationsEnabled) {
+        await scheduleDailyReminder();
+      }
+      
+      // Close the modal
+      setShowTimePickerModal(false);
+      
+      // Show confirmation
+      Alert.alert(
+        'Notification Time Updated',
+        `You will now receive daily reminders at ${formatTime()}.`,
+        [{ text: 'OK' }]
+      );
+    } catch (error) {
+      console.error('Error saving notification time:', error);
+      Alert.alert(
+        'Error',
+        'There was a problem updating your notification time. Please try again.'
+      );
+    }
+  };
+  
+  // Format time to readable string
+  const formatTime = (): string => {
+    const hour12 = selectedHour;
+    const minuteStr = selectedMinute.toString().padStart(2, '0');
+    return `${hour12}:${minuteStr} ${selectedAmPm}`;
   };
   
   // Handle subscription upgrade/downgrade
@@ -487,8 +646,37 @@ export default function ProfileScreen({ onClose, onLogout }: ProfileScreenProps)
               onValueChange={handleNotificationsToggle}
               trackColor={{ false: '#767577', true: theme.colors.primary + '80' }}
               thumbColor={notificationsEnabled ? theme.colors.primary : '#f4f3f4'}
+              ios_backgroundColor="#3e3e3e"
             />
           </View>
+          
+          {notificationsEnabled && (
+            <>
+              <Text style={styles.settingSubtitle}>Notification Time</Text>
+              
+              <TouchableOpacity 
+                style={styles.timeSelector}
+                onPress={handleOpenTimePicker}
+                activeOpacity={0.7}
+              >
+                <View style={styles.selectedTimeContainer}>
+                  <Ionicons name="time-outline" size={24} color={theme.colors.text} />
+                  <Text style={styles.selectedTimeText}>{formatTime()}</Text>
+                </View>
+                <Ionicons name="chevron-forward" size={20} color={theme.colors.subtext} />
+              </TouchableOpacity>
+              
+              <Text style={styles.settingDescription}>
+                You will receive a daily reminder at {formatTime()} to check in with your mood.
+              </Text>
+            </>
+          )}
+          
+          {!notificationsEnabled && (
+            <Text style={styles.settingDescription}>
+              Enable notifications to receive daily reminders to check in with your mood.
+            </Text>
+          )}
         </View>
         
         {/* Support Section */}
@@ -645,6 +833,115 @@ export default function ProfileScreen({ onClose, onLogout }: ProfileScreenProps)
         </View>
       </Modal>
       
+      {/* Time Picker Modal */}
+      <Modal
+        visible={showTimePickerModal}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setShowTimePickerModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.timePickerContainer}>
+            <View style={styles.timePickerHeader}>
+              <TouchableOpacity onPress={() => setShowTimePickerModal(false)}>
+                <Text style={styles.timePickerCancelButton}>Cancel</Text>
+              </TouchableOpacity>
+              <Text style={styles.timePickerTitle}>Set Notification Time</Text>
+              <TouchableOpacity onPress={handleSaveTime}>
+                <Text style={styles.timePickerSaveButton}>Save</Text>
+              </TouchableOpacity>
+            </View>
+            
+            <View style={styles.timePickerContent}>
+              <View style={styles.timePickerRow}>
+                {/* Hour Selector */}
+                <View style={styles.timePickerColumn}>
+                  <Text style={styles.timePickerLabel}>Hour</Text>
+                  <ScrollView 
+                    style={styles.timePickerScrollView}
+                    showsVerticalScrollIndicator={false}
+                  >
+                    {hours.map((hour) => (
+                      <TouchableOpacity
+                        key={`hour-${hour.value}`}
+                        style={[
+                          styles.timePickerItem,
+                          selectedHour === hour.value && styles.timePickerItemSelected
+                        ]}
+                        onPress={() => handleHourSelect(hour.value)}
+                      >
+                        <Text style={[
+                          styles.timePickerItemText,
+                          selectedHour === hour.value && styles.timePickerItemTextSelected
+                        ]}>
+                          {hour.label}
+                        </Text>
+                      </TouchableOpacity>
+                    ))}
+                  </ScrollView>
+                </View>
+                
+                {/* Minute Selector */}
+                <View style={styles.timePickerColumn}>
+                  <Text style={styles.timePickerLabel}>Minute</Text>
+                  <ScrollView 
+                    style={styles.timePickerScrollView}
+                    showsVerticalScrollIndicator={false}
+                  >
+                    {minutes.map((minute) => (
+                      <TouchableOpacity
+                        key={`minute-${minute.value}`}
+                        style={[
+                          styles.timePickerItem,
+                          selectedMinute === minute.value && styles.timePickerItemSelected
+                        ]}
+                        onPress={() => handleMinuteSelect(minute.value)}
+                      >
+                        <Text style={[
+                          styles.timePickerItemText,
+                          selectedMinute === minute.value && styles.timePickerItemTextSelected
+                        ]}>
+                          {minute.label}
+                        </Text>
+                      </TouchableOpacity>
+                    ))}
+                  </ScrollView>
+                </View>
+                
+                {/* AM/PM Selector */}
+                <View style={styles.timePickerColumn}>
+                  <Text style={styles.timePickerLabel}>AM/PM</Text>
+                  <View style={styles.ampmContainer}>
+                    {ampm.map((period) => (
+                      <TouchableOpacity
+                        key={`ampm-${period.value}`}
+                        style={[
+                          styles.ampmButton,
+                          selectedAmPm === period.value && styles.ampmButtonSelected
+                        ]}
+                        onPress={() => handleAmPmSelect(period.value)}
+                      >
+                        <Text style={[
+                          styles.ampmButtonText,
+                          selectedAmPm === period.value && styles.ampmButtonTextSelected
+                        ]}>
+                          {period.label}
+                        </Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                </View>
+              </View>
+              
+              <View style={styles.timePreview}>
+                <Text style={styles.timePreviewLabel}>Selected Time:</Text>
+                <Text style={styles.timePreviewValue}>{formatTime()}</Text>
+              </View>
+            </View>
+          </View>
+        </View>
+      </Modal>
+      
       {/* Premium Feature Modal */}
       <PremiumFeatureModal
         visible={premiumModalVisible}
@@ -775,6 +1072,14 @@ const styles = StyleSheet.create({
     color: theme.colors.text,
     marginBottom: 12,
   },
+  settingSubtitle: {
+    fontSize: 16,
+    fontWeight: theme.fontWeights.semibold,
+    color: theme.colors.text,
+    marginTop: 16,
+    marginBottom: 8,
+    marginLeft: 4,
+  },
   subscriptionCard: {
     backgroundColor: theme.colors.card,
     borderRadius: 16,
@@ -887,6 +1192,32 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: theme.colors.text,
     marginLeft: 12,
+  },
+  timeSelector: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    backgroundColor: theme.colors.card,
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 8,
+    ...theme.shadows.small,
+  },
+  selectedTimeContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  selectedTimeText: {
+    fontSize: 16,
+    color: theme.colors.primary,
+    fontWeight: '500',
+    marginLeft: 12,
+  },
+  settingDescription: {
+    fontSize: 14,
+    color: theme.colors.subtext,
+    marginLeft: 4,
+    marginBottom: 16,
   },
   signOutButton: {
     flexDirection: 'row',
@@ -1023,5 +1354,118 @@ const styles = StyleSheet.create({
     color: 'white',
     fontSize: 16,
     fontWeight: theme.fontWeights.semibold,
+  },
+  // Time picker styles
+  timePickerContainer: {
+    width: '90%',
+    backgroundColor: theme.colors.background,
+    borderRadius: 16,
+    overflow: 'hidden',
+    ...theme.shadows.large,
+  },
+  timePickerHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: theme.colors.border,
+  },
+  timePickerTitle: {
+    fontSize: 18,
+    fontWeight: theme.fontWeights.bold,
+    color: theme.colors.text,
+  },
+  timePickerCancelButton: {
+    fontSize: 16,
+    color: theme.colors.subtext,
+  },
+  timePickerSaveButton: {
+    fontSize: 16,
+    fontWeight: theme.fontWeights.semibold,
+    color: theme.colors.primary,
+  },
+  timePickerContent: {
+    padding: 16,
+  },
+  timePickerRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 20,
+  },
+  timePickerColumn: {
+    flex: 1,
+    alignItems: 'center',
+  },
+  timePickerLabel: {
+    fontSize: 16,
+    fontWeight: theme.fontWeights.semibold,
+    color: theme.colors.text,
+    marginBottom: 8,
+  },
+  timePickerScrollView: {
+    height: 200,
+    width: '100%',
+  },
+  timePickerItem: {
+    paddingVertical: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 8,
+    marginVertical: 2,
+  },
+  timePickerItemSelected: {
+    backgroundColor: theme.colors.primary + '20',
+  },
+  timePickerItemText: {
+    fontSize: 18,
+    color: theme.colors.text,
+  },
+  timePickerItemTextSelected: {
+    color: theme.colors.primary,
+    fontWeight: theme.fontWeights.bold,
+  },
+  ampmContainer: {
+    marginTop: 20,
+  },
+  ampmButton: {
+    paddingVertical: 16,
+    paddingHorizontal: 24,
+    borderRadius: 8,
+    marginVertical: 8,
+    backgroundColor: theme.colors.card,
+    alignItems: 'center',
+    justifyContent: 'center',
+    ...theme.shadows.small,
+  },
+  ampmButtonSelected: {
+    backgroundColor: theme.colors.primary,
+  },
+  ampmButtonText: {
+    fontSize: 18,
+    fontWeight: theme.fontWeights.medium,
+    color: theme.colors.text,
+  },
+  ampmButtonTextSelected: {
+    color: 'white',
+  },
+  timePreview: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 16,
+    paddingTop: 16,
+    borderTopWidth: 1,
+    borderTopColor: theme.colors.border,
+  },
+  timePreviewLabel: {
+    fontSize: 16,
+    color: theme.colors.text,
+    marginRight: 8,
+  },
+  timePreviewValue: {
+    fontSize: 20,
+    fontWeight: theme.fontWeights.bold,
+    color: theme.colors.primary,
   },
 });

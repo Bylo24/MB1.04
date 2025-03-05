@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { StatusBar } from 'expo-status-bar';
-import { StyleSheet, Text, View, ActivityIndicator } from 'react-native';
+import { StyleSheet, Text, View, ActivityIndicator, Platform } from 'react-native';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
@@ -10,9 +10,16 @@ import LoginScreen from './screens/LoginScreen';
 import SetupNameScreen from './screens/SetupNameScreen';
 import IntroductionScreen from './screens/IntroductionScreen';
 import TipsScreen from './screens/TipsScreen';
+import SubscriptionComparisonScreen from './screens/SubscriptionComparisonScreen';
 import { isAuthenticated, signOut, getCurrentUser } from './services/authService';
 import { supabase } from './utils/supabaseClient';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { 
+  initializeNotifications, 
+  requestNotificationPermissions,
+  checkScheduledNotifications
+} from './services/notificationService';
+import * as Notifications from 'expo-notifications';
 
 // Define navigation stack param list
 type RootStackParamList = {
@@ -21,9 +28,19 @@ type RootStackParamList = {
   Introduction: { userName: string };
   Tips: undefined;
   Home: undefined;
+  SubscriptionComparison: { source: 'limit' | 'upgrade' | 'settings' | 'manage' };
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
+
+// Configure how notifications are handled when the app is in the foreground
+Notifications.setNotificationHandler({
+  handleNotification: async () => ({
+    shouldShowAlert: true,
+    shouldPlaySound: true,
+    shouldSetBadge: true,
+  }),
+});
 
 export default function App() {
   const [isLoading, setIsLoading] = useState(true);
@@ -31,8 +48,55 @@ export default function App() {
   const [isNewUser, setIsNewUser] = useState(false);
   const [initialRouteName, setInitialRouteName] = useState<keyof RootStackParamList>('Login');
   
-  // Check authentication status when app loads
+  // Refs for navigation
+  const navigationRef = useRef<any>(null);
+  const notificationResponseRef = useRef<Notifications.NotificationResponse | null>(null);
+  
+  // Initialize notifications and check authentication status when app loads
   useEffect(() => {
+    const setupApp = async () => {
+      try {
+        console.log('Setting up app and notifications...');
+        
+        // Request notification permissions early
+        const permissionGranted = await requestNotificationPermissions();
+        console.log('Notification permission granted:', permissionGranted);
+        
+        // Initialize notifications
+        await initializeNotifications();
+        
+        // Check if notifications are scheduled
+        await checkScheduledNotifications();
+        
+        // Set up notification received handler
+        const subscription = Notifications.addNotificationReceivedListener(notification => {
+          console.log('Notification received in foreground!', notification);
+        });
+        
+        // Set up notification response handler (when user taps notification)
+        const responseSubscription = Notifications.addNotificationResponseReceivedListener(response => {
+          console.log('Notification response received!', response);
+          
+          // Store the response to handle after navigation is ready
+          notificationResponseRef.current = response;
+          
+          // If navigation is already initialized, handle the notification
+          if (navigationRef.current && !isLoading) {
+            handleNotificationResponse(response);
+          }
+        });
+        
+        // Clean up subscriptions when component unmounts
+        return () => {
+          subscription.remove();
+          responseSubscription.remove();
+        };
+      } catch (error) {
+        console.error('Error setting up notifications:', error);
+      }
+    };
+    
+    setupApp();
     checkAuth();
     
     // Set up auth state change listener
@@ -54,6 +118,22 @@ export default function App() {
       authListener?.subscription.unsubscribe();
     };
   }, []);
+  
+  // Handle notification response after navigation is ready
+  useEffect(() => {
+    if (navigationRef.current && !isLoading && notificationResponseRef.current) {
+      handleNotificationResponse(notificationResponseRef.current);
+      notificationResponseRef.current = null;
+    }
+  }, [isLoading, navigationRef.current]);
+  
+  // Handle notification response
+  const handleNotificationResponse = (response: Notifications.NotificationResponse) => {
+    // Navigate to Home screen when notification is tapped
+    if (initialRouteName === 'Home' && navigationRef.current) {
+      navigationRef.current.navigate('Home');
+    }
+  };
   
   // Check if user is authenticated
   const checkAuth = async () => {
@@ -184,7 +264,9 @@ export default function App() {
   
   return (
     <SafeAreaProvider>
-      <NavigationContainer>
+      <NavigationContainer
+        ref={navigationRef}
+      >
         <StatusBar style="light" />
         <Stack.Navigator 
           initialRouteName={initialRouteName}
@@ -250,6 +332,16 @@ export default function App() {
               <HomeScreen 
                 {...props}
                 onLogout={handleLogout}
+              />
+            )}
+          </Stack.Screen>
+          
+          <Stack.Screen name="SubscriptionComparison">
+            {props => (
+              <SubscriptionComparisonScreen 
+                onClose={() => props.navigation.goBack()}
+                showCloseButton={true}
+                source={props.route.params?.source || 'upgrade'}
               />
             )}
           </Stack.Screen>

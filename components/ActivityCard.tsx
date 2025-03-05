@@ -2,6 +2,7 @@ import React from 'react';
 import { StyleSheet, Text, View, Pressable, Dimensions } from 'react-native';
 import { Activity } from '../types';
 import { theme } from '../theme/theme';
+import PremiumFeatureBadge from './PremiumFeatureBadge';
 
 // Get screen dimensions
 const { width: screenWidth } = Dimensions.get('window');
@@ -9,9 +10,10 @@ const { width: screenWidth } = Dimensions.get('window');
 interface ActivityCardProps {
   activity: Activity;
   onPress?: () => void;
+  isPremiumUser?: boolean;
 }
 
-export default function ActivityCard({ activity, onPress }: ActivityCardProps) {
+export default function ActivityCard({ activity, onPress, isPremiumUser = false }: ActivityCardProps) {
   // Get icon based on activity category
   const getCategoryIcon = (category: Activity['category']) => {
     switch (category) {
@@ -28,6 +30,7 @@ export default function ActivityCard({ activity, onPress }: ActivityCardProps) {
     <Pressable 
       style={({ pressed }) => [
         styles.container,
+        activity.isPremium && !isPremiumUser && styles.premiumContainer,
         pressed && { opacity: 0.8, transform: [{ scale: 0.98 }] }
       ]} 
       onPress={onPress}
@@ -68,7 +71,19 @@ export default function ActivityCard({ activity, onPress }: ActivityCardProps) {
           <View style={styles.progressBar}>
             <View style={[styles.progressFill, { width: '30%' }]} />
           </View>
-          <Text style={styles.progressText}>Complete 3 more for a reward!</Text>
+          <View style={styles.progressTextContainer}>
+            <Text style={styles.progressText}>Complete 3 more for a reward!</Text>
+            {activity.isPremium && !isPremiumUser && (
+              <View style={styles.premiumBadgeContainer}>
+                <PremiumFeatureBadge
+                  featureName="Premium Activity"
+                  featureDescription="This activity is only available to premium users. Upgrade to access this and many more premium activities."
+                  onUpgrade={onPress || (() => {})}
+                  small
+                />
+              </View>
+            )}
+          </View>
         </View>
       </View>
     </Pressable>
@@ -120,6 +135,10 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: theme.colors.border,
     marginBottom: 12, // Added margin to create more space between cards
+  },
+  premiumContainer: {
+    borderColor: theme.colors.premium,
+    borderWidth: 1,
   },
   iconContainer: {
     width: 60, // Increased width for better visibility
@@ -212,4 +231,12 @@ const styles = StyleSheet.create({
     color: theme.colors.subtext,
     fontStyle: 'italic',
   },
+  progressTextContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  premiumBadgeContainer: {
+    marginLeft: 'auto',
+  }
 });

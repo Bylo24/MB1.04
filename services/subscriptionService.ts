@@ -273,6 +273,26 @@ export async function isFeatureAvailable(featureName: string): Promise<boolean> 
   return freeFeatures.includes(featureName);
 }
 
+// Toggle subscription for demo purposes
+export async function toggleSubscriptionForDemo(): Promise<SubscriptionTier> {
+  try {
+    const currentTier = await getCurrentSubscriptionTier();
+    
+    if (currentTier === 'premium') {
+      // Cancel subscription
+      await cancelPremiumSubscription();
+      return 'free';
+    } else {
+      // Subscribe to premium
+      await subscribeToPremium();
+      return 'premium';
+    }
+  } catch (error) {
+    console.error('Error toggling subscription:', error);
+    throw error;
+  }
+}
+
 // Clear subscription cache (useful for testing or logout)
 export async function clearSubscriptionCache(): Promise<void> {
   await AsyncStorage.removeItem(SUBSCRIPTION_CACHE_KEY);

@@ -84,6 +84,33 @@ function simulateActivityRecommendations(
 ): Activity[] {
   console.log('Simulating activity recommendations for:', { moodRating, moodDetails });
   
+  // Check if the user didn't specify what they feel like
+  // Look for empty details or generic phrases like "I don't know", "not sure", etc.
+  const emptyOrGenericDetails = !moodDetails || 
+    moodDetails.trim() === '' || 
+    /^(i don'?t know|not sure|unsure|no idea|whatever|anything|nothing specific|don'?t care)$/i.test(moodDetails.trim());
+  
+  // If details are empty or generic, return completely random activities
+  if (emptyOrGenericDetails) {
+    console.log('User did not specify what they feel like. Providing completely random activities.');
+    
+    // Create a copy of the available activities array to avoid modifying the original
+    const shuffledActivities = [...availableActivities];
+    
+    // Fisher-Yates shuffle algorithm for true randomness
+    for (let i = shuffledActivities.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [shuffledActivities[i], shuffledActivities[j]] = [shuffledActivities[j], shuffledActivities[i]];
+    }
+    
+    // Take the first 3 activities from the shuffled array
+    const randomActivities = shuffledActivities.slice(0, 3);
+    
+    console.log('Selected completely random activities:', randomActivities.map(a => a.title));
+    return randomActivities;
+  }
+  
+  // If the user did specify details, continue with the existing logic
   // Convert details to lowercase for easier matching
   const details = moodDetails.toLowerCase();
   

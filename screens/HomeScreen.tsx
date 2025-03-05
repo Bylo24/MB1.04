@@ -310,6 +310,11 @@ export default function HomeScreen({ onLogout, navigation }: HomeScreenProps) {
     }
   };
   
+  // Navigate to subscription screen (direct method)
+  const navigateToSubscription = () => {
+    navigation.navigate('SubscriptionComparison', { source: 'upgrade' });
+  };
+  
   function getMoodEmoji(rating: number | null): string {
     if (rating === null) return '–';
     switch (rating) {
@@ -365,12 +370,30 @@ export default function HomeScreen({ onLogout, navigation }: HomeScreenProps) {
         
         <QuoteComponent key={quoteKey} />
         
+        {/* Mood Check-in Section - Moved above premium features */}
+        <View style={styles.moodCheckInContainer}>
+          <Text style={styles.sectionTitle}>How are you feeling today?</Text>
+          <MoodSlider 
+            value={selectedMood} 
+            onValueChange={handleMoodChange}
+            onMoodSaved={handleMoodSaved}
+            onMoodDetailsSubmitted={handleMoodDetailsSubmitted}
+            disabled={isSliderDisabled}
+          />
+        </View>
+        
         {/* Premium Features Section */}
         <View style={styles.premiumFeaturesContainer}>
           {/* Guided Exercises & Meditations Button */}
           <TouchableOpacity 
             style={styles.premiumFeatureButton}
-            onPress={() => handlePremiumFeaturePress('GuidedExercises')}
+            onPress={() => {
+              if (!isPremium) {
+                navigateToSubscription();
+              } else {
+                handlePremiumFeaturePress('GuidedExercises');
+              }
+            }}
           >
             <View style={styles.premiumFeatureContent}>
               <View style={styles.premiumFeatureIconContainer}>
@@ -386,7 +409,7 @@ export default function HomeScreen({ onLogout, navigation }: HomeScreenProps) {
                 <PremiumFeatureBadge
                   featureName="Guided Exercises & Meditations"
                   featureDescription="Access our library of guided exercises and meditations tailored to your specific moods. Perfect for managing stress, anxiety, and improving your overall wellbeing."
-                  onUpgrade={() => navigation.navigate('SubscriptionComparison', { source: 'upgrade' })}
+                  onUpgrade={navigateToSubscription}
                   small
                 />
               )}
@@ -397,7 +420,13 @@ export default function HomeScreen({ onLogout, navigation }: HomeScreenProps) {
           {/* Streak Rewards Button */}
           <TouchableOpacity 
             style={styles.premiumFeatureButton}
-            onPress={() => handlePremiumFeaturePress('StreakRewards')}
+            onPress={() => {
+              if (!isPremium) {
+                navigateToSubscription();
+              } else {
+                handlePremiumFeaturePress('StreakRewards');
+              }
+            }}
           >
             <View style={styles.premiumFeatureContent}>
               <View style={[styles.premiumFeatureIconContainer, { backgroundColor: theme.colors.accent }]}>
@@ -413,7 +442,7 @@ export default function HomeScreen({ onLogout, navigation }: HomeScreenProps) {
                 <PremiumFeatureBadge
                   featureName="Premium Streak Rewards"
                   featureDescription="Unlock special badges, achievements, and streak recovery options with a premium subscription."
-                  onUpgrade={() => navigation.navigate('SubscriptionComparison', { source: 'upgrade' })}
+                  onUpgrade={navigateToSubscription}
                   small
                 />
               )}
@@ -424,7 +453,13 @@ export default function HomeScreen({ onLogout, navigation }: HomeScreenProps) {
           {/* AI Mood Predictions Button */}
           <TouchableOpacity 
             style={styles.premiumFeatureButton}
-            onPress={() => handlePremiumFeaturePress('MoodPredictions')}
+            onPress={() => {
+              if (!isPremium) {
+                navigateToSubscription();
+              } else {
+                handlePremiumFeaturePress('MoodPredictions');
+              }
+            }}
           >
             <View style={styles.premiumFeatureContent}>
               <View style={[styles.premiumFeatureIconContainer, { backgroundColor: '#9C27B0' }]}>
@@ -440,24 +475,13 @@ export default function HomeScreen({ onLogout, navigation }: HomeScreenProps) {
                 <PremiumFeatureBadge
                   featureName="AI Mood Predictions"
                   featureDescription="Our AI analyzes your mood patterns to predict future trends and provide personalized insights to help you prepare for potential mood changes."
-                  onUpgrade={() => navigation.navigate('SubscriptionComparison', { source: 'upgrade' })}
+                  onUpgrade={navigateToSubscription}
                   small
                 />
               )}
               <Ionicons name="chevron-forward" size={20} color={theme.colors.text} />
             </View>
           </TouchableOpacity>
-        </View>
-        
-        <View style={styles.moodCheckInContainer}>
-          <Text style={styles.sectionTitle}>How are you feeling today?</Text>
-          <MoodSlider 
-            value={selectedMood} 
-            onValueChange={handleMoodChange}
-            onMoodSaved={handleMoodSaved}
-            onMoodDetailsSubmitted={handleMoodDetailsSubmitted}
-            disabled={isSliderDisabled}
-          />
         </View>
         
         <View style={styles.moodSummaryContainer}>
@@ -491,7 +515,13 @@ export default function HomeScreen({ onLogout, navigation }: HomeScreenProps) {
               
               <TouchableOpacity 
                 style={styles.summaryItem}
-                onPress={() => handlePremiumFeaturePress('StreakRewards')}
+                onPress={() => {
+                  if (!isPremium) {
+                    navigateToSubscription();
+                  } else {
+                    handlePremiumFeaturePress('StreakRewards');
+                  }
+                }}
               >
                 <Text style={styles.summaryLabel}>Streak</Text>
                 <View style={styles.streakContainer}>
@@ -521,7 +551,19 @@ export default function HomeScreen({ onLogout, navigation }: HomeScreenProps) {
           ) : (
             activities.map(activity => (
               <View key={activity.id} style={styles.activityItem}>
-                <ActivityCard activity={activity} />
+                <ActivityCard 
+                  activity={activity} 
+                  isPremiumUser={isPremium}
+                  onPress={() => {
+                    // If this is a premium activity and user is not premium, show subscription screen
+                    if (activity.isPremium && !isPremium) {
+                      navigateToSubscription();
+                    } else {
+                      // Otherwise handle the activity normally
+                      console.log('Activity pressed:', activity.title);
+                    }
+                  }}
+                />
               </View>
             ))
           )}

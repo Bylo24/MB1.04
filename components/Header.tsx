@@ -16,7 +16,7 @@ export default function Header({ title, onProfilePress }: HeaderProps) {
       ) : (
         <View style={styles.logoContainer}>
           <Image 
-            source={require('../assets/icon.png')} 
+            source={require('../assets/mood-buddy-logo.png')} 
             style={styles.logo} 
           />
         </View>

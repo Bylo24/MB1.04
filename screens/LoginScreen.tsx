@@ -228,7 +228,7 @@ export default function LoginScreen({ onLogin }: LoginScreenProps) {
       >
         <View style={styles.logoContainer}>
           <Image 
-            source={require('../assets/icon.png')} 
+            source={require('../assets/mood-buddy-logo.png')} 
             style={styles.logo} 
           />
           <Text style={styles.logoText}>Mood Buddy</Text>
